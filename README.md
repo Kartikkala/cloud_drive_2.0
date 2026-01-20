@@ -2,7 +2,6 @@
 
 ![Go Version](https://img.shields.io/badge/Go-1.18+-blue.svg)
 ![License](https://img.shields.io/badge/License-MIT-green.svg)
-![GitHub Stars](https://img.shields.io/github/stars/sirkartik/cloud_drive_2.0?style=social)
 
 **Cloud Drive 2.0** is a modern, powerful, and self-hostable cloud storage solution built with Go. It's designed to be your all-in-one private cloud for files, collaboration, and media, giving you complete control over your data on your own hardware.
 
