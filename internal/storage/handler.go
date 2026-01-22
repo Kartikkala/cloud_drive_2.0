@@ -13,4 +13,3 @@ func NewHandler(svc Service) *Handler {
 		svc: svc,
 	}
 }
-

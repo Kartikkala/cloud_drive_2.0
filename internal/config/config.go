@@ -24,11 +24,19 @@ type EmailConfig struct {
 	Port uint16
 }
 
+type JWTConfig struct {
+	Secret     string
+	ExpiryHour int
+}
+
 type Config struct{
 	Database DatabaseConfig
 	App ApplicationConfig
 	SMTP EmailConfig
+	JWT      JWTConfig
 }
+
+
 
 func NewConfig() *Config {
 	return &Config{
@@ -49,5 +57,10 @@ func NewConfig() *Config {
 			Password: os.Getenv("EMAIl_PASSWORD"),
 			Port: uint16(587),
 		},
+		JWT: JWTConfig{
+	    	Secret:     os.Getenv("JWT_SECRET"),
+	    	ExpiryHour: 24,
+		},
+
 	}
 }
