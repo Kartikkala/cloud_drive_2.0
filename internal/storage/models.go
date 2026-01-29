@@ -2,6 +2,8 @@ package storage
 
 import (
 	"time"
+
+	"github.com/google/uuid"
 )
 
 type NodeType string
@@ -12,13 +14,13 @@ const (
 )
 
 type Node struct {
-	ID               int64     `json:"id" db:"id"`
-	ParentID         *int64    `json:"parent_id" db:"parent_id"`
-	OwnerID          int64     `json:"owner_id" db:"owner_id"`
+	ID               uuid.UUID    `json:"id" db:"id"`
+	ParentID         *uuid.UUID   `json:"parent_id" db:"parent_id"`
+	OwnerID          uint64     `json:"owner_id" db:"owner_id"`
 	Name             string    `json:"name" db:"name"`
 	Type             NodeType  `json:"node_type" db:"node_type"`
 	Key 			 *string   `json:"object_storage_key,omitempty" db:"object_storage_key"` // Only for files
-	SizeBytes        *int64    `json:"size_bytes,omitempty" db:"size_bytes"`                 // Only for files
+	SizeBytes        *uint64    `json:"size_bytes,omitempty" db:"size_bytes"`                 // Only for files
 	MimeType         *string   `json:"mime_type,omitempty" db:"mime_type"`                   // Only for files
 	CreatedAt        time.Time `json:"created_at" db:"created_at"`
 }

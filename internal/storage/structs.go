@@ -6,13 +6,13 @@ import (
 	"io"
 	"time"
 )
-type ObjectInfo struct {
+type NodeInfo struct {
 	Bytes uint64
 	ContentType string
 	LastModified time.Time
 	Key string
-	Bucket string
-	Metadata map[string] string
+	OwnerID uint64
+	ParentID string
 }
 
 type ObjectStorage interface {
