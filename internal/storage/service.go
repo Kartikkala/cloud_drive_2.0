@@ -35,7 +35,27 @@ func (svc *Service) canWrite(
 	NodeID uuid.UUID,
 	UserID uint64,
 ) bool {
+	node, err := svc.GetNode(ctx, NodeID)
+	if err != nil || node.Type != NodeTypeDirectory || node.OwnerID != UserID  {
+		return false
+	}
 	return true
+}
+
+func (svc *Service) getObjectKey(
+	ctx context.Context,
+	NodeID uuid.UUID,
+	UserID uint64,
+) (string, error) {
+	node, err := svc.GetNode(ctx, NodeID)
+	if err != nil {
+		return "", err
+	} else if node.Type != NodeTypeFile {
+		return "", ErrNodeIsDirectory
+	} else if node.OwnerID != UserID {
+		return "", ErrUnauthorized
+	}
+	return *node.Key, nil
 }
 
 func (svc *Service) Put(ctx context.Context, 
@@ -48,8 +68,7 @@ func (svc *Service) Put(ctx context.Context,
 	defer data.Close()
 
 	if !svc.canWrite(ctx, ParentID, UserID) {
-		err := errors.New("Unauthorized write operation!")
-		return err
+		return ErrUnauthorized
 	}
 	mimeType, newReader , err := detectMimeType(data)
 	if err != nil {
@@ -82,3 +101,46 @@ func (svc *Service) Put(ctx context.Context,
 	})
 	return err
 }
+
+func (svc *Service) GetData(
+	ctx context.Context,
+	NodeID uuid.UUID,
+	UserID uint64,
+) (io.ReadCloser, error) {
+	key, err := svc.getObjectKey(ctx, NodeID, UserID)
+	if err != nil {
+		return nil, err
+	}
+	return svc.Client.Get(ctx, "cloud-drive", key)
+}
+
+func (svc *Service) Delete(
+	ctx context.Context,
+	NodeID uuid.UUID,
+	UserID uint64,
+) error {
+	key, err := svc.getObjectKey(ctx, NodeID, UserID)
+	if errors.Is(err, ErrNodeIsDirectory) {
+		// TODO : Recursive delete operation in directory
+		return err
+	} else if err != nil {
+		return err
+	}
+	return svc.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		res := tx.Delete(&Node{} ,"id = ? AND owner_id = ?", NodeID, UserID)
+		if res.Error != nil {
+			return res.Error
+		} 
+		
+		if res.RowsAffected == 0 {
+			return ErrUnauthorized
+		}
+
+		if err := svc.Client.Delete(ctx, "cloud-drive", key); err != nil {
+			return err
+		}
+
+		return nil
+	})
+}
+
