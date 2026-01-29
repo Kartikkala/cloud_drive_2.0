@@ -21,7 +21,8 @@ func main() {
 		fmt.Println(err.Error())
 	}
 	authSvc := auth.NewService(app.DB, *app.Cfg)
-	storageSvc := storage.NewService(app.DB)
+	minioStorageClient, err := storage.NewMinioStorage("", "", "")
+	storageSvc := storage.NewService(app.DB, minioStorageClient)
 	
 	e := echo.New()
 	port := app.Cfg.App.RESTPort

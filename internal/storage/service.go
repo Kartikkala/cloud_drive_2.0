@@ -4,12 +4,9 @@ import (
 	"gorm.io/gorm"
 )
 
-type Service struct {
-	DB *gorm.DB
-}
-
-func NewService(DB *gorm.DB) *Service {
+func NewService(DB *gorm.DB, storageClient ObjectStorage) *Service {
 	return &Service{
 		DB : DB,
+		Client: storageClient,
 	}
 }

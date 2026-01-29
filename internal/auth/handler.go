@@ -23,7 +23,7 @@ func (h *Handler) RegisterHandler(c echo.Context) error {
         return c.JSON(http.StatusBadRequest, "invalid request body")
     }
 
-    err := h.svc.RegisterService(req.Email, req.Username, req.Password)
+    err := h.svc.RegisterService(c.Request().Context(), req.Email, req.Username, req.Password)
     if err != nil {
         return c.JSON(http.StatusBadRequest, err.Error())
     }
@@ -38,7 +38,7 @@ func (h *Handler) LoginHandler(c echo.Context) error {
         return c.JSON(http.StatusBadRequest, "invalid request body")
     }
 
-    user, err := h.svc.LoginService(req.Email, req.Password)
+    user, err := h.svc.LoginService(c.Request().Context(), req.Email, req.Password)
 
     if err != nil {
         return c.JSON(http.StatusUnauthorized, err.Error())

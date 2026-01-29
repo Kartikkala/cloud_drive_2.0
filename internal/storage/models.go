@@ -13,16 +13,14 @@ const (
 
 type Node struct {
 	ID               int64     `json:"id" db:"id"`
-	OwnerID          int64     `json:"owner_id" db:"owner_id"`
 	ParentID         *int64    `json:"parent_id" db:"parent_id"`
+	OwnerID          int64     `json:"owner_id" db:"owner_id"`
 	Name             string    `json:"name" db:"name"`
 	Type             NodeType  `json:"node_type" db:"node_type"`
-	ObjectStorageKey *string   `json:"object_storage_key,omitempty" db:"object_storage_key"` // Only for files
-	SHA256Hash       *string   `json:"sha256_hash,omitempty" db:"sha256_hash"`               // Only for files
+	Key 			 *string   `json:"object_storage_key,omitempty" db:"object_storage_key"` // Only for files
 	SizeBytes        *int64    `json:"size_bytes,omitempty" db:"size_bytes"`                 // Only for files
 	MimeType         *string   `json:"mime_type,omitempty" db:"mime_type"`                   // Only for files
 	CreatedAt        time.Time `json:"created_at" db:"created_at"`
-	UpdatedAt        time.Time `json:"updated_at" db:"updated_at"`
 }
 
 type Subtitle struct {
@@ -61,17 +59,12 @@ type MusicMetadata struct {
 	Genre           string `json:"genre,omitempty" db:"genre"`
 }
 
-type PermissionRole string
 
-const (
-	RoleEditor PermissionRole = "editor"
-	RoleViewer PermissionRole = "viewer"
-)
 
 type NodePermission struct {
 	ID        int64          `json:"id" db:"id"`
 	NodeID    int64          `json:"node_id" db:"node_id"`
 	UserID    int64          `json:"user_id" db:"user_id"`
-	Role      PermissionRole `json:"role" db:"role"`
+	Role      string 		 `json:"role" db:"role"`
 	GrantedAt time.Time      `json:"granted_at" db:"granted_at"`
 }

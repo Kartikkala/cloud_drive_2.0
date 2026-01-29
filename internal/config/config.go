@@ -29,11 +29,23 @@ type JWTConfig struct {
 	ExpiryHour int
 }
 
+type MinioConfig struct {
+	SecretAccessKey string
+	UseSSL bool
+	Endpoint string
+	AccessKeyID string
+}
+
+type StorageConfig struct {
+	MinioConfig MinioConfig
+}
+
 type Config struct{
 	Database DatabaseConfig
 	App ApplicationConfig
 	SMTP EmailConfig
 	JWT      JWTConfig
+	Storage StorageConfig
 }
 
 
@@ -60,6 +72,14 @@ func NewConfig() *Config {
 		JWT: JWTConfig{
 	    	Secret:     os.Getenv("JWT_SECRET"),
 	    	ExpiryHour: 24,
+		},
+		Storage : StorageConfig {
+			MinioConfig : MinioConfig{
+				Endpoint: "127.0.0.1:9000",
+				AccessKeyID: os.Getenv("MINIO_ACCESS_KEY_ID"),
+				SecretAccessKey: os.Getenv("MINIO_SECRET_ACCESS_KEY"),
+				UseSSL: false,
+			},
 		},
 
 	}

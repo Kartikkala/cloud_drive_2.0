@@ -10,8 +10,11 @@ func AttachRoutes(e *echo.Echo, svc *Service, jwtMiddleware echo.MiddlewareFunc)
 	api := e.Group("/api")
 	api.Use(jwtMiddleware)
 	api.GET("/test", func(c echo.Context) error {
+		
 		return c.JSON(http.StatusAccepted, map[string] any {
 			"res" : c.Get("user"),
 		})
 	})
+	
+
 }

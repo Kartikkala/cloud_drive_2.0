@@ -8,6 +8,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 	"strconv"
+	"context"
 )
 
 type Service struct {
@@ -32,7 +33,7 @@ func NewService(DB *gorm.DB, cfg config.Config) *Service {
 	}
 }
 
-func (svc *Service) RegisterService(email string, username string, password string) error {
+func (svc *Service) RegisterService(ctx context.Context, email string, username string, password string) error {
 	if email == "" || username == "" || password == "" {
 		return errors.New("email, username, and password cannot be empty")
 	}
@@ -48,17 +49,17 @@ func (svc *Service) RegisterService(email string, username string, password stri
 		Password: string(hashedPassword),
 	}
 
-	result := svc.db.Create(&user)
+	result := svc.db.WithContext(ctx).Create(&user)
 	return result.Error
 }
 
-func (svc *Service) LoginService(email string, password string) (*User, error) {
+func (svc *Service) LoginService(ctx context.Context, email string, password string) (*User, error) {
 	if email == "" || password == "" {
 		return nil, errors.New("email and password cannot be empty")
 	}
 
 	var user User
-	err := svc.db.Where("email = ?", email).First(&user).Error
+	err := svc.db.WithContext(ctx).Where("email = ?", email).First(&user).Error
 
 	if err != nil && errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, errors.New("NotRegistered")
