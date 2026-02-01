@@ -10,6 +10,8 @@ import (
 )
 
 func NewService(DB *gorm.DB, storageClient ObjectStorage) *Service {
+	DB.AutoMigrate(&Node{})
+	DB.AutoMigrate(&NodePermission{})
 	return &Service{
 		DB : DB,
 		Client: storageClient,
@@ -42,20 +44,17 @@ func (svc *Service) canWrite(
 	return true
 }
 
-func (svc *Service) getObjectKey(
+func (svc *Service) checkNodeDeliverability(
 	ctx context.Context,
-	NodeID uuid.UUID,
+	node *Node,
 	UserID uint64,
-) (string, error) {
-	node, err := svc.GetNode(ctx, NodeID)
-	if err != nil {
-		return "", err
-	} else if node.Type != NodeTypeFile {
-		return "", ErrNodeIsDirectory
+) error {
+	if node.Type != NodeTypeFile {
+		return ErrNodeIsDirectory
 	} else if node.OwnerID != UserID {
-		return "", ErrUnauthorized
+		return ErrUnauthorized
 	}
-	return *node.Key, nil
+	return nil
 }
 
 func (svc *Service) Put(ctx context.Context, 
@@ -67,19 +66,26 @@ func (svc *Service) Put(ctx context.Context,
 ) error {
 	defer data.Close()
 
-	if !svc.canWrite(ctx, ParentID, UserID) {
-		return ErrUnauthorized
+	var parentID *uuid.UUID
+
+	if ParentID != uuid.Nil {
+		parentID = &ParentID
+		if !svc.canWrite(ctx, ParentID, UserID) {
+			return ErrUnauthorized
+		}
 	}
+
 	mimeType, newReader , err := detectMimeType(data)
 	if err != nil {
 		return err
 	}
 	err = svc.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		
 		key := uuid.NewString()
 		node := Node{
 			ID: uuid.New(),
 			OwnerID: UserID,
-			ParentID: &ParentID,
+			ParentID: parentID,
 			Key: &key,
 			CreatedAt: time.Now(),
 			SizeBytes: &Bytes,
@@ -96,7 +102,6 @@ func (svc *Service) Put(ctx context.Context,
 		if err != nil {
 			return err
 		}
-		
 		return nil
 	})
 	return err
@@ -106,12 +111,20 @@ func (svc *Service) GetData(
 	ctx context.Context,
 	NodeID uuid.UUID,
 	UserID uint64,
-) (io.ReadCloser, error) {
-	key, err := svc.getObjectKey(ctx, NodeID, UserID)
+) (io.ReadCloser, *Node ,error) {
+	node, err := svc.GetNode(ctx, NodeID)
 	if err != nil {
-		return nil, err
+		return nil, nil ,err
 	}
-	return svc.Client.Get(ctx, "cloud-drive", key)
+	err = svc.checkNodeDeliverability(ctx, node, UserID)
+	if err != nil {
+		return nil, nil ,err
+	}
+	stream, err := svc.Client.Get(ctx, "cloud-drive", *node.Key)
+	if err != nil {
+		return nil, nil ,err
+	}
+	return stream, node, err
 }
 
 func (svc *Service) Delete(
@@ -119,7 +132,14 @@ func (svc *Service) Delete(
 	NodeID uuid.UUID,
 	UserID uint64,
 ) error {
-	key, err := svc.getObjectKey(ctx, NodeID, UserID)
+	node, err := svc.GetNode(ctx, NodeID)
+	if err != nil {
+		return err
+	}
+	err = svc.checkNodeDeliverability(ctx, node, UserID)
+	if err != nil {
+		return err
+	}
 	if errors.Is(err, ErrNodeIsDirectory) {
 		// TODO : Recursive delete operation in directory
 		return err
@@ -136,11 +156,35 @@ func (svc *Service) Delete(
 			return ErrUnauthorized
 		}
 
-		if err := svc.Client.Delete(ctx, "cloud-drive", key); err != nil {
+		if err := svc.Client.Delete(ctx, "cloud-drive", *node.Key); err != nil {
 			return err
 		}
 
 		return nil
 	})
+}
+
+func (svc Service) ListNodes(
+	ctx context.Context,
+	ParentNodeID uuid.UUID,
+	UserID uint64,
+) ([]Node,error) {
+	
+	var nodeList []Node
+	db := svc.DB.WithContext(ctx).
+    Where("owner_id = ?", UserID)
+
+	if ParentNodeID == uuid.Nil {
+		db = db.Where("parent_id IS NULL")
+	} else {
+		db = db.Where("parent_id = ?", ParentNodeID)
+	}
+
+	err := db.Find(&nodeList).Error
+
+	if err != nil {
+		return nil , err
+	}
+	return nodeList, nil
 }
 

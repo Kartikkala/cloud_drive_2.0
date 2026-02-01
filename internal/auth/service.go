@@ -11,19 +11,6 @@ import (
 	"context"
 )
 
-type Service struct {
-	db *gorm.DB
-	jwtSecret []byte
-	jwtExpiry time.Duration 
-}
-
-type CustomClaims struct {
-	Usernam string `json:"username"`
-    Email string `json:"email"`
-    Role  string `json:"role"`
-    jwt.RegisteredClaims
-}
-
 func NewService(DB *gorm.DB, cfg config.Config) *Service {
 	DB.AutoMigrate(&User{})
 	return &Service{

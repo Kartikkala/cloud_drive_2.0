@@ -1,7 +1,14 @@
 package storage
 
 import (
-	// "github.com/labstack/echo/v4"
+	"fmt"
+	"io"
+	"log"
+	"net/http"
+
+	"github.com/google/uuid"
+	"github.com/labstack/echo/v4"
+	"github.com/sirkartik/cloud_drive_2.0/internal/auth"
 )
 
 type Handler struct {
@@ -12,4 +19,88 @@ func NewHandler(svc Service) *Handler {
 	return &Handler{
 		svc: svc,
 	}
+}
+
+func (h Handler) Download(c echo.Context) error {
+	var req DLoad
+	ctx := c.Request().Context()
+	if err := c.Bind(&req); err != nil {
+		return c.JSON(http.StatusBadRequest, "missing id param in request body")
+	}
+	id, err := uuid.Parse(req.NodeID)
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, "invalid id param")
+	}
+	var user *auth.CustomClaims = c.Get("user").(*auth.CustomClaims)
+	
+	stream, node ,err := h.svc.GetData(ctx, id, user.ID)
+
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, "error getting data from storage service")
+	}
+
+	c.Response().Header().Set(
+		echo.HeaderContentDisposition, 
+		fmt.Sprintf(`attachment; filename="%s"`, node.Name),
+	)
+	c.Response().Header().Set(echo.HeaderContentType, "application/octet-stream")
+	c.Response().WriteHeader(http.StatusOK)
+	_, err = io.Copy(c.Response().Writer ,stream)
+	return err
+}
+
+func (h Handler) Upload(c echo.Context) error {
+	fileHeader, err := c.FormFile("file")
+	if err != nil {
+		log.Println(err.Error())
+		return c.JSON(http.StatusBadRequest, "missing file")
+	}
+	ctx := c.Request().Context()
+
+	file, err := fileHeader.Open()
+
+	if err != nil {
+		log.Println(err)
+		return c.JSON(http.StatusInternalServerError, "cannot open file")
+	}
+
+	defer file.Close()
+	var user *auth.CustomClaims = c.Get("user").(*auth.CustomClaims)
+	var parentNodeId string = c.Request().Header.Get("parent_id")
+
+	filename := fileHeader.Filename
+	size := fileHeader.Size
+	parentId, err := uuid.Parse(parentNodeId)
+	if err != nil {
+		parentId = uuid.Nil
+	}
+	err = h.svc.Put(ctx, user.ID, parentId, filename, uint64(size), file)
+
+	if err != nil {
+		log.Println(err)
+		return c.JSON(http.StatusInternalServerError, "error writing file to the storage")
+	}
+	return c.NoContent(http.StatusCreated)
+}
+
+func (h Handler) List(c echo.Context) error {
+	var req ListNodes
+	ctx := c.Request().Context()
+	
+	if err := c.Bind(&req); err != nil {
+        return c.JSON(http.StatusBadRequest, "invalid request body")
+    }
+	var user *auth.CustomClaims = c.Get("user").(*auth.CustomClaims)
+
+	parentId, _ := uuid.Parse(req.ParentID)
+	nodeList, err := h.svc.ListNodes(ctx, parentId, user.ID)
+
+	if err != nil {
+		log.Println(err.Error())
+		return c.JSON(http.StatusInternalServerError, "error fetching node list")
+	}
+
+	return c.JSON(http.StatusAccepted, map[string]interface{}{
+    	"list": &nodeList,
+	})
 }
