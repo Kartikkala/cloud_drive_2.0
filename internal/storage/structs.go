@@ -10,6 +10,7 @@ type ObjectStorage interface {
 	Put(ctx context.Context, bucket, key string, data io.Reader, size int64) error
 	Get(ctx context.Context, bucket, key string) (io.ReadCloser, error)
 	Delete(ctx context.Context, bucket, key string) error
+	Copy(ctx context.Context, bucket, srcKey, destKey string) error
 }
 
 type Service struct {

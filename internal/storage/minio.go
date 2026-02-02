@@ -74,3 +74,24 @@ func (m *MinioStorage) Delete(
 	}
 	return err
 }
+
+func (m *MinioStorage) Copy(
+	ctx context.Context,
+	bucket, srcKey, destKey string,
+) error {
+	var src minio.CopySrcOptions = minio.CopySrcOptions{
+		Bucket: bucket,
+		Object: srcKey,
+	}
+
+	var dest minio.CopyDestOptions = minio.CopyDestOptions{
+		Bucket: bucket,
+		Object: destKey,
+	}
+	_, err := m.client.CopyObject(ctx, dest, src)
+	
+	if err != nil {
+		return err
+	}
+	return nil
+}

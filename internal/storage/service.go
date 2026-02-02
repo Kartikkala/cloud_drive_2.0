@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"time"
+
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
@@ -13,7 +14,7 @@ func NewService(DB *gorm.DB, storageClient ObjectStorage) *Service {
 	DB.AutoMigrate(&Node{})
 	DB.AutoMigrate(&NodePermission{})
 	return &Service{
-		DB : DB,
+		DB:     DB,
 		Client: storageClient,
 	}
 }
@@ -21,9 +22,9 @@ func NewService(DB *gorm.DB, storageClient ObjectStorage) *Service {
 func (svc *Service) GetNode(
 	ctx context.Context,
 	ID uuid.UUID,
-)(*Node, error){
+) (*Node, error) {
 	var node Node
-	err := svc.DB.WithContext(ctx).Where("id=?",ID).First(&node).Error
+	err := svc.DB.WithContext(ctx).Where("id=?", ID).First(&node).Error
 	if err != nil {
 		return nil, err
 	}
@@ -38,7 +39,7 @@ func (svc *Service) canWrite(
 	UserID uint64,
 ) bool {
 	node, err := svc.GetNode(ctx, NodeID)
-	if err != nil || node.Type != NodeTypeDirectory || node.OwnerID != UserID  {
+	if err != nil || node.Type != NodeTypeDirectory || node.OwnerID != UserID {
 		return false
 	}
 	return true
@@ -57,7 +58,7 @@ func (svc *Service) checkNodeDeliverability(
 	return nil
 }
 
-func (svc *Service) Put(ctx context.Context, 
+func (svc *Service) Put(ctx context.Context,
 	UserID uint64,
 	ParentID uuid.UUID,
 	Name string,
@@ -75,23 +76,23 @@ func (svc *Service) Put(ctx context.Context,
 		}
 	}
 
-	mimeType, newReader , err := detectMimeType(data)
+	mimeType, newReader, err := detectMimeType(data)
 	if err != nil {
 		return err
 	}
 	err = svc.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		
+
 		key := uuid.NewString()
 		node := Node{
-			ID: uuid.New(),
-			OwnerID: UserID,
-			ParentID: parentID,
-			Key: &key,
+			ID:        uuid.New(),
+			OwnerID:   UserID,
+			ParentID:  parentID,
+			Key:       &key,
 			CreatedAt: time.Now(),
 			SizeBytes: &Bytes,
-			MimeType: &mimeType,
-			Type: NodeTypeFile,
-			Name: Name,
+			MimeType:  &mimeType,
+			Type:      NodeTypeFile,
+			Name:      Name,
 		}
 
 		result := tx.Create(&node)
@@ -111,18 +112,18 @@ func (svc *Service) GetData(
 	ctx context.Context,
 	NodeID uuid.UUID,
 	UserID uint64,
-) (io.ReadCloser, *Node ,error) {
+) (io.ReadCloser, *Node, error) {
 	node, err := svc.GetNode(ctx, NodeID)
 	if err != nil {
-		return nil, nil ,err
+		return nil, nil, err
 	}
 	err = svc.checkNodeDeliverability(ctx, node, UserID)
 	if err != nil {
-		return nil, nil ,err
+		return nil, nil, err
 	}
 	stream, err := svc.Client.Get(ctx, "cloud-drive", *node.Key)
 	if err != nil {
-		return nil, nil ,err
+		return nil, nil, err
 	}
 	return stream, node, err
 }
@@ -132,47 +133,70 @@ func (svc *Service) Delete(
 	NodeID uuid.UUID,
 	UserID uint64,
 ) error {
-	node, err := svc.GetNode(ctx, NodeID)
-	if err != nil {
-		return err
-	}
-	err = svc.checkNodeDeliverability(ctx, node, UserID)
-	if err != nil {
-		return err
-	}
-	if errors.Is(err, ErrNodeIsDirectory) {
-		// TODO : Recursive delete operation in directory
-		return err
-	} else if err != nil {
-		return err
-	}
-	return svc.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		res := tx.Delete(&Node{} ,"id = ? AND owner_id = ?", NodeID, UserID)
-		if res.Error != nil {
-			return res.Error
-		} 
+
+	// Fetch all matching nodes
+	var nodes []Node
+	err := svc.DB.WithContext(ctx).
+		Raw(`
+		WITH RECURSIVE subtree AS (
+		SELECT * FROM nodes WHERE id = ?
+		AND owner_id = ?
 		
-		if res.RowsAffected == 0 {
-			return ErrUnauthorized
-		}
+		UNION ALL
+		
+		SELECT n.* FROM nodes n JOIN
+		subtree s ON n.parent_id = s.id
+		)
+	
+		SELECT * FROM subtree;
+	`, NodeID, UserID).
+		Scan(&nodes).Error
 
-		if err := svc.Client.Delete(ctx, "cloud-drive", *node.Key); err != nil {
-			return err
-		}
+	if err != nil {
+		return err
+	}
 
-		return nil
-	})
+	if len(nodes) == 0 {
+		return ErrNodeNotFound
+	}
+
+	// Deletion from object storage
+
+	for _, item := range nodes {
+		if item.Key == nil {
+			continue
+		}
+		svc.Client.Delete(ctx, "cloud-drive", *item.Key)
+	}
+
+	return svc.DB.WithContext(ctx).
+		Exec(`
+	WITH RECURSIVE subtree AS (
+		SELECT id
+		FROM nodes
+		WHERE id = ? AND owner_id = ?
+
+		UNION ALL
+
+		SELECT n.id
+		FROM nodes n
+		JOIN subtree s ON n.parent_id = s.id
+	)
+	DELETE FROM nodes
+	WHERE id IN (SELECT id FROM subtree);
+	`, NodeID, UserID).
+		Error
 }
 
 func (svc Service) ListNodes(
 	ctx context.Context,
 	ParentNodeID uuid.UUID,
 	UserID uint64,
-) ([]Node,error) {
-	
+) ([]Node, error) {
+
 	var nodeList []Node
 	db := svc.DB.WithContext(ctx).
-    Where("owner_id = ?", UserID)
+		Where("owner_id = ?", UserID)
 
 	if ParentNodeID == uuid.Nil {
 		db = db.Where("parent_id IS NULL")
@@ -183,7 +207,7 @@ func (svc Service) ListNodes(
 	err := db.Find(&nodeList).Error
 
 	if err != nil {
-		return nil , err
+		return nil, err
 	}
 	return nodeList, nil
 }
@@ -199,15 +223,113 @@ func (svc Service) CreateDirectoryNode(
 		parentId = &ParentNodeID
 	}
 	var node Node = Node{
-		Name: Name,
-		ID: uuid.New(),
-		ParentID: parentId,
-		OwnerID: OwnerID,
+		Name:      Name,
+		ID:        uuid.New(),
+		ParentID:  parentId,
+		OwnerID:   OwnerID,
 		CreatedAt: time.Now(),
-		Type: NodeTypeDirectory,
+		Type:      NodeTypeDirectory,
 	}
 	if err := svc.DB.WithContext(ctx).Create(&node).Error; err != nil {
 		return err
 	}
+	return nil
+}
+
+func (svc Service) Copy(
+	ctx context.Context,
+	SourceParentID,
+	TargetNodeID,
+	DestinationID uuid.UUID,
+	OwnerID uint64,
+) error {
+	var destinationID *uuid.UUID = nil
+
+	if DestinationID != uuid.Nil {
+		destinationID = &DestinationID
+	}
+
+	var node Node
+
+	query := svc.DB.Where("id = ?", TargetNodeID).
+		Where("owner_id = ?", OwnerID)
+	if SourceParentID == uuid.Nil {
+		query = query.Where("parent_id is NULL")
+	} else {
+		query = query.Where("parent_id = ?", SourceParentID)
+	}
+	err := query.First(&node).Error
+
+	if err != nil {
+		return err
+	}
+	if node.Type == NodeTypeDirectory {
+		return errors.New("could not copy entire directories!")
+	}
+
+	newNodeKey := uuid.NewString()
+
+	err = svc.Client.Copy(ctx, "cloud-drive", *node.Key, newNodeKey)
+	if err != nil {
+		return err
+	}
+
+	var newNode Node = Node{
+		ID:        uuid.New(),
+		ParentID:  destinationID,
+		OwnerID:   OwnerID,
+		MimeType:  node.MimeType,
+		CreatedAt: time.Now(),
+		SizeBytes: node.SizeBytes,
+		Type:      node.Type,
+		Name:      node.Name,
+		Key:       &newNodeKey,
+	}
+
+	result := svc.DB.Create(&newNode)
+
+	if result.Error != nil {
+		cleanupCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		_ = svc.Client.Delete(cleanupCtx, "cloud-drive", newNodeKey)
+		return result.Error
+	}
+	return nil
+}
+
+func (svc Service) Move(
+	ctx context.Context,
+	SourceParentID uuid.UUID,
+	TargetNodeID uuid.UUID,
+	DestinationParentID uuid.UUID,
+	OwnerID uint64,
+) error {
+	if TargetNodeID == uuid.Nil {
+		return errors.New("target node id can't be nil")
+	}
+	var destId *uuid.UUID = nil
+
+	if DestinationParentID != uuid.Nil {
+		destId = &DestinationParentID
+	}
+
+	query := svc.DB.WithContext(ctx).
+		Model(&Node{}).
+		Where("owner_id = ?", OwnerID)
+
+	if SourceParentID == uuid.Nil {
+		query = query.Where("parent_id IS NULL")
+	} else {
+		query = query.Where("parent_id = ?", SourceParentID)
+	}
+
+	query = query.Where("id = ?", TargetNodeID)
+	result := query.Update("parent_id", destId)
+
+	if result.Error != nil {
+		return result.Error
+	}
+
 	return nil
 }

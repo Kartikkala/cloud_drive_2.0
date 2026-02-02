@@ -12,7 +12,7 @@ import (
 )
 
 type Handler struct {
-	svc Service 
+	svc Service
 }
 
 func NewHandler(svc Service) *Handler {
@@ -32,20 +32,20 @@ func (h Handler) Download(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, "invalid id param")
 	}
 	var user *auth.CustomClaims = c.Get("user").(*auth.CustomClaims)
-	
-	stream, node ,err := h.svc.GetData(ctx, id, user.ID)
+
+	stream, node, err := h.svc.GetData(ctx, id, user.ID)
 
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, "error getting data from storage service")
 	}
 
 	c.Response().Header().Set(
-		echo.HeaderContentDisposition, 
+		echo.HeaderContentDisposition,
 		fmt.Sprintf(`attachment; filename="%s"`, node.Name),
 	)
 	c.Response().Header().Set(echo.HeaderContentType, "application/octet-stream")
 	c.Response().WriteHeader(http.StatusOK)
-	_, err = io.Copy(c.Response().Writer ,stream)
+	_, err = io.Copy(c.Response().Writer, stream)
 	return err
 }
 
@@ -86,10 +86,10 @@ func (h Handler) Upload(c echo.Context) error {
 func (h Handler) List(c echo.Context) error {
 	var req ListNodes
 	ctx := c.Request().Context()
-	
+
 	if err := c.Bind(&req); err != nil {
-        return c.JSON(http.StatusBadRequest, "invalid request body")
-    }
+		return c.JSON(http.StatusBadRequest, "invalid request body")
+	}
 	var user *auth.CustomClaims = c.Get("user").(*auth.CustomClaims)
 
 	parentId, _ := uuid.Parse(req.ParentID)
@@ -101,7 +101,7 @@ func (h Handler) List(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusAccepted, map[string]interface{}{
-    	"list": &nodeList,
+		"list": &nodeList,
 	})
 }
 
@@ -121,4 +121,70 @@ func (h Handler) CreateDirectoryNode(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, "error creating directory node")
 	}
 	return c.JSON(http.StatusCreated, "directory created")
+}
+
+func (h Handler) Copy(
+	c echo.Context,
+) error {
+	var req Move
+	ctx := c.Request().Context()
+
+	if err := c.Bind(&req); err != nil {
+		return c.JSON(http.StatusBadRequest, "invalid request body")
+	}
+	var user *auth.CustomClaims = c.Get("user").(*auth.CustomClaims)
+	srcParentId, _ := uuid.Parse(req.SrcParentID)
+	targetNodeId, _ := uuid.Parse(req.TargetNodeID)
+	destParentId, _ := uuid.Parse(req.DestParentID)
+
+	err := h.svc.Copy(ctx, srcParentId, targetNodeId, destParentId, user.ID)
+	if err != nil {
+		log.Println(err.Error())
+		return c.JSON(http.StatusInternalServerError, "error performing copy operation")
+	}
+	return c.JSON(http.StatusAccepted, "copy successful")
+}
+
+func (h Handler) Move(
+	c echo.Context,
+) error {
+	var req Move
+	ctx := c.Request().Context()
+
+	if err := c.Bind(&req); err != nil {
+		return c.JSON(http.StatusBadRequest, "invalid request body")
+	}
+	var user *auth.CustomClaims = c.Get("user").(*auth.CustomClaims)
+	srcParentId, _ := uuid.Parse(req.SrcParentID)
+	targetNodeId, _ := uuid.Parse(req.TargetNodeID)
+	destParentId, _ := uuid.Parse(req.DestParentID)
+
+	err := h.svc.Move(ctx, srcParentId, targetNodeId, destParentId, user.ID)
+	if err != nil {
+		log.Println(err.Error())
+		return c.JSON(http.StatusInternalServerError, "error performing move operation")
+	}
+	return c.JSON(http.StatusAccepted, "move successful")
+}
+
+func (h Handler) Delete(
+	c echo.Context,
+) error {
+	var req Delete
+	ctx := c.Request().Context()
+
+	if err := c.Bind(&req); err != nil {
+		return c.JSON(http.StatusBadRequest, "invalid request body")
+	}
+	var user *auth.CustomClaims = c.Get("user").(*auth.CustomClaims)
+	targetNodeId, _ := uuid.Parse(req.NodeID)
+	
+	err := h.svc.Delete(ctx, targetNodeId , user.ID)
+
+	if err != nil {
+		log.Println(err.Error())
+		return c.JSON(http.StatusInternalServerError, "error deleting selected node")
+	}
+
+	return c.JSON(http.StatusAccepted, "deletion successful")
 }
