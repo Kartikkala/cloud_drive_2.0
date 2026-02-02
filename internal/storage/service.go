@@ -188,3 +188,26 @@ func (svc Service) ListNodes(
 	return nodeList, nil
 }
 
+func (svc Service) CreateDirectoryNode(
+	ctx context.Context,
+	Name string,
+	ParentNodeID uuid.UUID,
+	OwnerID uint64,
+) error {
+	var parentId *uuid.UUID = nil
+	if ParentNodeID != uuid.Nil {
+		parentId = &ParentNodeID
+	}
+	var node Node = Node{
+		Name: Name,
+		ID: uuid.New(),
+		ParentID: parentId,
+		OwnerID: OwnerID,
+		CreatedAt: time.Now(),
+		Type: NodeTypeDirectory,
+	}
+	if err := svc.DB.WithContext(ctx).Create(&node).Error; err != nil {
+		return err
+	}
+	return nil
+}

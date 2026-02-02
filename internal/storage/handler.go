@@ -104,3 +104,21 @@ func (h Handler) List(c echo.Context) error {
     	"list": &nodeList,
 	})
 }
+
+func (h Handler) CreateDirectoryNode(c echo.Context) error {
+	var req Mkdir
+	ctx := c.Request().Context()
+
+	if err := c.Bind(&req); err != nil {
+		return c.JSON(http.StatusBadRequest, "invalid request body")
+	}
+	var user *auth.CustomClaims = c.Get("user").(*auth.CustomClaims)
+	parentId, _ := uuid.Parse(req.ParentID)
+
+	err := h.svc.CreateDirectoryNode(ctx, req.Name, parentId, user.ID)
+	if err != nil {
+		log.Println(err.Error())
+		return c.JSON(http.StatusInternalServerError, "error creating directory node")
+	}
+	return c.JSON(http.StatusCreated, "directory created")
+}

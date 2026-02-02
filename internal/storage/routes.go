@@ -11,4 +11,5 @@ func AttachRoutes(e *echo.Echo, svc *Service, jwtMiddleware echo.MiddlewareFunc)
 	api.POST("/upload", handler.Upload)
 	api.POST("/download", handler.Download)
 	api.POST("/list", handler.List)
+	api.POST("/mkdir", handler.CreateDirectoryNode)
 }
