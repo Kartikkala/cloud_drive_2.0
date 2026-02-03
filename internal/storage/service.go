@@ -230,77 +230,130 @@ func (svc Service) CreateDirectoryNode(
 		CreatedAt: time.Now(),
 		Type:      NodeTypeDirectory,
 	}
-	if err := svc.DB.WithContext(ctx).Create(&node).Error; err != nil {
-		return err
-	}
-	return nil
+
+	return svc.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if ParentNodeID != uuid.Nil {
+			tx = tx.Where("id = ? AND owner_id = ? AND type = 'directory'", ParentNodeID, OwnerID)
+			var parentNode Node
+			if err := tx.First(&parentNode).Error; err != nil {
+				return err
+			}
+		}
+		if err := tx.Create(&node).Error; err != nil {
+			return err
+		}
+		return nil
+	})
 }
 
 func (svc Service) Copy(
 	ctx context.Context,
-	SourceParentID,
-	TargetNodeID,
+	TargetNodeID uuid.UUID,
 	DestinationID uuid.UUID,
 	OwnerID uint64,
 ) error {
-	var destinationID *uuid.UUID = nil
-
-	if DestinationID != uuid.Nil {
-		destinationID = &DestinationID
+	if TargetNodeID == uuid.Nil {
+		return errors.New("target node id can't be nil")
 	}
 
-	var node Node
+	db := svc.DB.WithContext(ctx)
 
-	query := svc.DB.Where("id = ?", TargetNodeID).
-		Where("owner_id = ?", OwnerID)
-	if SourceParentID == uuid.Nil {
-		query = query.Where("parent_id is NULL")
-	} else {
-		query = query.Where("parent_id = ?", SourceParentID)
-	}
-	err := query.First(&node).Error
-
-	if err != nil {
+	var targetNode Node
+	if err := db.Where("id = ? AND owner_id = ?", TargetNodeID, OwnerID).
+		First(&targetNode).Error; err != nil {
 		return err
 	}
-	if node.Type == NodeTypeDirectory {
-		return errors.New("could not copy entire directories!")
+
+	if targetNode.Type == NodeTypeDirectory {
+		return errors.New("directory copy not supported")
+	}
+
+	if DestinationID != uuid.Nil {
+		isDes, err := svc.isDescendant(ctx, TargetNodeID, DestinationID, OwnerID)
+		if err != nil {
+			return err
+		}
+		if isDes {
+			return errors.New("cannot copy node into its own subtree")
+		}
+	}
+
+	if DestinationID != uuid.Nil {
+		var destinationNode Node
+		if err := db.Where("id = ? AND owner_id = ?", DestinationID, OwnerID).
+			First(&destinationNode).Error; err != nil {
+			return err
+		}
+		if destinationNode.Type == NodeTypeFile {
+			return errors.New("cannot copy into a file")
+		}
 	}
 
 	newNodeKey := uuid.NewString()
 
-	err = svc.Client.Copy(ctx, "cloud-drive", *node.Key, newNodeKey)
-	if err != nil {
+	if err := svc.Client.Copy(ctx, "cloud-drive", *targetNode.Key, newNodeKey); err != nil {
 		return err
 	}
 
-	var newNode Node = Node{
+	var destinationID *uuid.UUID
+	if DestinationID != uuid.Nil {
+		destinationID = &DestinationID
+	}
+
+	newNode := Node{
 		ID:        uuid.New(),
 		ParentID:  destinationID,
 		OwnerID:   OwnerID,
-		MimeType:  node.MimeType,
-		CreatedAt: time.Now(),
-		SizeBytes: node.SizeBytes,
-		Type:      node.Type,
-		Name:      node.Name,
+		Name:      targetNode.Name,
+		Type:      targetNode.Type,
 		Key:       &newNodeKey,
+		SizeBytes: targetNode.SizeBytes,
+		MimeType:  targetNode.MimeType,
+		CreatedAt: time.Now(),
 	}
 
-	result := svc.DB.Create(&newNode)
-
-	if result.Error != nil {
+	if err := svc.DB.WithContext(ctx).Create(&newNode).Error; err != nil {
 		cleanupCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-
 		_ = svc.Client.Delete(cleanupCtx, "cloud-drive", newNodeKey)
-		return result.Error
+		return err
 	}
+
 	return nil
+}
+
+func (svc Service) isDescendant(
+	ctx context.Context,
+	TargetNodeID uuid.UUID,
+	DestinationNodeID uuid.UUID,
+	OwnerID uint64,
+) (bool, error) {
+	var found int = 0
+
+	err := svc.DB.WithContext(ctx).
+		Raw(`
+		WITH RECURSIVE subtree AS (
+		SELECT id FROM public.nodes
+		WHERE parent_id = ?
+		AND owner_id = ?
+
+		UNION ALL
+
+		SELECT n.id
+		FROM subtree s JOIN public.nodes n ON s.id = n.parent_id
+		)
+		SELECT 1 FROM subtree WHERE id = ? LIMIT 1;
+	`, TargetNodeID, OwnerID, DestinationNodeID).Scan(&found).Error
+
+	if err != nil {
+		return false, err
+	}
+
+	return found == 1, nil
 }
 
 func (svc Service) Move(
 	ctx context.Context,
-	SourceParentID uuid.UUID,
 	TargetNodeID uuid.UUID,
 	DestinationParentID uuid.UUID,
 	OwnerID uint64,
@@ -311,18 +364,21 @@ func (svc Service) Move(
 	var destId *uuid.UUID = nil
 
 	if DestinationParentID != uuid.Nil {
+		isDes, err := svc.isDescendant(ctx, TargetNodeID, DestinationParentID, OwnerID)
+
+		if err != nil {
+			return err
+		}
+
+		if isDes {
+			return errors.New("cannot move node into its own subtree")
+		}
 		destId = &DestinationParentID
 	}
 
 	query := svc.DB.WithContext(ctx).
 		Model(&Node{}).
 		Where("owner_id = ?", OwnerID)
-
-	if SourceParentID == uuid.Nil {
-		query = query.Where("parent_id IS NULL")
-	} else {
-		query = query.Where("parent_id = ?", SourceParentID)
-	}
 
 	query = query.Where("id = ?", TargetNodeID)
 	result := query.Update("parent_id", destId)
@@ -331,5 +387,8 @@ func (svc Service) Move(
 		return result.Error
 	}
 
+	if result.RowsAffected == 0 {
+		return errors.New("node not found or source parent mismatch")
+	}
 	return nil
 }

@@ -14,9 +14,8 @@ type Mkdir struct {
 }
 
 type Move struct {
-	SrcParentID  string `json:"src_parent_id"`
-	DestParentID string `json:"dest_parent_id"`
 	TargetNodeID string `json:"target_id"`
+	DestParentID string `json:"dest_parent_id"`
 }
 
 type Delete struct {

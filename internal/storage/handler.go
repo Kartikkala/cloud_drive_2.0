@@ -133,11 +133,10 @@ func (h Handler) Copy(
 		return c.JSON(http.StatusBadRequest, "invalid request body")
 	}
 	var user *auth.CustomClaims = c.Get("user").(*auth.CustomClaims)
-	srcParentId, _ := uuid.Parse(req.SrcParentID)
 	targetNodeId, _ := uuid.Parse(req.TargetNodeID)
 	destParentId, _ := uuid.Parse(req.DestParentID)
 
-	err := h.svc.Copy(ctx, srcParentId, targetNodeId, destParentId, user.ID)
+	err := h.svc.Copy(ctx, targetNodeId, destParentId, user.ID)
 	if err != nil {
 		log.Println(err.Error())
 		return c.JSON(http.StatusInternalServerError, "error performing copy operation")
@@ -155,11 +154,10 @@ func (h Handler) Move(
 		return c.JSON(http.StatusBadRequest, "invalid request body")
 	}
 	var user *auth.CustomClaims = c.Get("user").(*auth.CustomClaims)
-	srcParentId, _ := uuid.Parse(req.SrcParentID)
 	targetNodeId, _ := uuid.Parse(req.TargetNodeID)
 	destParentId, _ := uuid.Parse(req.DestParentID)
 
-	err := h.svc.Move(ctx, srcParentId, targetNodeId, destParentId, user.ID)
+	err := h.svc.Move(ctx, targetNodeId, destParentId, user.ID)
 	if err != nil {
 		log.Println(err.Error())
 		return c.JSON(http.StatusInternalServerError, "error performing move operation")
