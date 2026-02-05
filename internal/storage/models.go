@@ -31,15 +31,6 @@ type Subtitle struct {
 	StorageKey string `json:"storage_key"`
 }
 
-type VideoMetadata struct {
-	NodeID          int64      `json:"node_id" db:"node_id"` // Links directly to Node
-	Quality         string     `json:"quality,omitempty" db:"quality"`
-	BitrateKBPS     int        `json:"bitrate_kbps,omitempty" db:"bitrate_kbps"`
-	DurationSeconds int        `json:"duration_seconds,omitempty" db:"duration_seconds"`
-	Codec           string     `json:"codec,omitempty" db:"codec"`
-	Subtitles       []Subtitle `json:"subtitles,omitempty" db:"subtitles"`
-}
-
 type PhotoMetadata struct {
 	NodeID       int64      `json:"node_id" db:"node_id"` // Links directly to Node
 	Width        int        `json:"width,omitempty" db:"width"`

@@ -22,7 +22,7 @@ func main() {
 	}
 	authSvc := auth.NewService(app.DB, *app.Cfg)
 	// Fill these minio values! Dont forget to turn on minio server!
-	minioStorageClient, err := storage.NewMinioStorage("127.0.0.1:9000", "minioadmin", "minioadmin")
+	minioStorageClient, err := storage.NewMinioStorage("127.0.0.1:9000", *&app.Cfg.Storage.MinioConfig.AccessKeyID, *&app.Cfg.Storage.MinioConfig.SecretAccessKey)
 	storageSvc := storage.NewService(app.DB, minioStorageClient)
 	
 	e := echo.New()

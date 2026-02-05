@@ -37,12 +37,16 @@ func (svc *Service) canWrite(
 	ctx context.Context,
 	NodeID uuid.UUID,
 	UserID uint64,
-) bool {
+) error {
 	node, err := svc.GetNode(ctx, NodeID)
-	if err != nil || node.Type != NodeTypeDirectory || node.OwnerID != UserID {
-		return false
+	if err != nil { 
+		return err
+	} else if node.Type != NodeTypeDirectory {
+		return ErrNodeIsFile
+	} else if node.OwnerID != UserID {
+		return ErrUnauthorized
 	}
-	return true
+	return nil
 }
 
 func (svc *Service) checkNodeDeliverability(
@@ -71,8 +75,11 @@ func (svc *Service) Put(ctx context.Context,
 
 	if ParentID != uuid.Nil {
 		parentID = &ParentID
-		if !svc.canWrite(ctx, ParentID, UserID) {
-			return ErrUnauthorized
+		if err := svc.canWrite(ctx, ParentID, UserID); err != nil{
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return ErrParentNodeNotFound
+			}
+			return err
 		}
 	}
 
