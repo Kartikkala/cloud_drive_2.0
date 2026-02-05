@@ -17,3 +17,8 @@ type Service struct {
 	DB *gorm.DB
 	Client ObjectStorage
 }
+
+type NodeWithPermission struct {
+	Node
+	PermissionType *PermissionType
+}

@@ -33,19 +33,33 @@ func (svc *Service) GetNode(
 
 // TODO: Implement this
 
-func (svc *Service) canWrite(
+func (svc *Service) canWriteIntoDirectory(
 	ctx context.Context,
 	NodeID uuid.UUID,
 	UserID uint64,
 ) error {
 	node, err := svc.GetNode(ctx, NodeID)
+	
 	if err != nil { 
 		return err
-	} else if node.Type != NodeTypeDirectory {
+	} 
+	
+	if node.Type != NodeTypeDirectory {
 		return ErrNodeIsFile
 	} else if node.OwnerID != UserID {
-		return ErrUnauthorized
-	}
+		var permission NodePermission
+	
+		err = svc.DB.
+		Where("user_id = ?", UserID).
+		First(&permission).
+		Error
+		if err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) || permission.Type != PermissionReadWrite {
+				return ErrUnauthorized
+			}
+			return err
+		} 
+	} 
 	return nil
 }
 
@@ -54,10 +68,17 @@ func (svc *Service) checkNodeDeliverability(
 	node *Node,
 	UserID uint64,
 ) error {
-	if node.Type != NodeTypeFile {
+	err := svc.DB.Model(&NodePermission{}).
+	Where("user_id = ?", UserID).
+	Error
+
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) && UserID != node.OwnerID {
+			return ErrUnauthorized
+		}
+		return err
+	} else if node.Type != NodeTypeFile {
 		return ErrNodeIsDirectory
-	} else if node.OwnerID != UserID {
-		return ErrUnauthorized
 	}
 	return nil
 }
@@ -75,7 +96,7 @@ func (svc *Service) Put(ctx context.Context,
 
 	if ParentID != uuid.Nil {
 		parentID = &ParentID
-		if err := svc.canWrite(ctx, ParentID, UserID); err != nil{
+		if err := svc.canWriteIntoDirectory(ctx, ParentID, UserID); err != nil{
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return ErrParentNodeNotFound
 			}
@@ -195,29 +216,55 @@ func (svc *Service) Delete(
 		Error
 }
 
+// No AUTH version for Get for Internal Services
+
+func (svc *Service) GetDataNoAuth(
+	ctx context.Context,
+	NodeID uuid.UUID,
+) (io.ReadCloser, *Node, error) {
+	node, err := svc.GetNode(ctx, NodeID)
+	if err != nil {
+		return nil, nil, err
+	}
+	stream, err := svc.Client.Get(ctx, "cloud-drive", *node.Key)
+	if err != nil {
+		return nil, nil, err
+	}
+	return stream, node, err
+}
+
 func (svc Service) ListNodes(
 	ctx context.Context,
 	ParentNodeID uuid.UUID,
 	UserID uint64,
-) ([]Node, error) {
+) ([]NodeWithPermission, error) {
 
-	var nodeList []Node
+	var nodeList []NodeWithPermission
+
 	db := svc.DB.WithContext(ctx).
-		Where("owner_id = ?", UserID)
+		Table("nodes").
+		Select("nodes.*, node_permissions.type AS permission_type").
+		Joins(`
+			LEFT JOIN node_permissions 
+			ON node_permissions.node_id = nodes.id 
+			AND node_permissions.user_id = ?
+		`, UserID).
+		Where("nodes.owner_id = ? OR node_permissions.user_id = ?", UserID, UserID)
 
 	if ParentNodeID == uuid.Nil {
-		db = db.Where("parent_id IS NULL")
+		db = db.Where("nodes.parent_id IS NULL")
 	} else {
-		db = db.Where("parent_id = ?", ParentNodeID)
+		db = db.Where("nodes.parent_id = ?", ParentNodeID)
 	}
 
-	err := db.Find(&nodeList).Error
-
+	err := db.Scan(&nodeList).Error
 	if err != nil {
 		return nil, err
 	}
+
 	return nodeList, nil
 }
+
 
 func (svc Service) CreateDirectoryNode(
 	ctx context.Context,

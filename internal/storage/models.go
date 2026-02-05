@@ -13,6 +13,13 @@ const (
 	NodeTypeDirectory NodeType = "directory"
 )
 
+type PermissionType string
+
+const (
+	PermissionRead      PermissionType = "r"
+	PermissionReadWrite PermissionType = "rw"
+)
+
 type Node struct {
 	ID        uuid.UUID  `json:"id" db:"id"`
 	ParentID  *uuid.UUID `json:"parent_id" db:"parent_id"`
@@ -53,9 +60,8 @@ type MusicMetadata struct {
 }
 
 type NodePermission struct {
-	ID        int64     `json:"id" db:"id"`
-	NodeID    int64     `json:"node_id" db:"node_id"`
-	UserID    int64     `json:"user_id" db:"user_id"`
-	Role      string    `json:"role" db:"role"`
-	GrantedAt time.Time `json:"granted_at" db:"granted_at"`
+	ID     int64          `json:"id" db:"id"`
+	NodeID uuid.UUID      `json:"node_id" db:"node_id"`
+	UserID int64          `json:"user_id" db:"user_id"`
+	Type   PermissionType `json:"type" db:"type"`
 }
