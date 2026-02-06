@@ -54,7 +54,7 @@ func (svc *Service) canWriteIntoDirectory(
 		First(&permission).
 		Error
 		if err != nil {
-			if errors.Is(err, gorm.ErrRecordNotFound) || permission.Type != PermissionReadWrite {
+			if errors.Is(err, gorm.ErrRecordNotFound) || permission.Type != 2 || permission.Type != 5 || permission.Type != 7 {
 				return ErrUnauthorized
 			}
 			return err

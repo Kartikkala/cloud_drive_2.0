@@ -13,11 +13,12 @@ const (
 	NodeTypeDirectory NodeType = "directory"
 )
 
-type PermissionType string
+type PermissionType uint8
 
 const (
-	PermissionRead      PermissionType = "r"
-	PermissionReadWrite PermissionType = "rw"
+	PermissionRead    PermissionType = 3
+	PermissionWrite   PermissionType = 2
+	PermissionExecute PermissionType = 1
 )
 
 type Node struct {
