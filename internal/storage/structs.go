@@ -1,9 +1,11 @@
 package storage
 
 import (
-	"gorm.io/gorm"
 	"context"
 	"io"
+
+	"github.com/sirkartik/cloud_drive_2.0/internal/events"
+	"gorm.io/gorm"
 )
 
 type ObjectStorage interface {
@@ -14,8 +16,9 @@ type ObjectStorage interface {
 }
 
 type Service struct {
-	DB *gorm.DB
-	Client ObjectStorage
+	DB          *gorm.DB
+	Client      ObjectStorage
+	EventBroker *events.Broker[*events.Job]
 }
 
 type NodeWithPermission struct {

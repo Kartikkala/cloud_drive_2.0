@@ -4,18 +4,21 @@ import (
 	"context"
 	"errors"
 	"io"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/sirkartik/cloud_drive_2.0/internal/events"
 	"gorm.io/gorm"
 )
 
-func NewService(DB *gorm.DB, storageClient ObjectStorage) *Service {
+func NewService(DB *gorm.DB, storageClient ObjectStorage, EventBroker *events.Broker[*events.Job]) *Service {
 	DB.AutoMigrate(&Node{})
 	DB.AutoMigrate(&NodePermission{})
 	return &Service{
-		DB:     DB,
-		Client: storageClient,
+		DB:          DB,
+		Client:      storageClient,
+		EventBroker: EventBroker,
 	}
 }
 
@@ -39,27 +42,27 @@ func (svc *Service) canWriteIntoDirectory(
 	UserID uint64,
 ) error {
 	node, err := svc.GetNode(ctx, NodeID)
-	
-	if err != nil { 
+
+	if err != nil {
 		return err
-	} 
-	
+	}
+
 	if node.Type != NodeTypeDirectory {
 		return ErrNodeIsFile
 	} else if node.OwnerID != UserID {
 		var permission NodePermission
-	
+
 		err = svc.DB.
-		Where("user_id = ?", UserID).
-		First(&permission).
-		Error
+			Where("user_id = ?", UserID).
+			First(&permission).
+			Error
 		if err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) || permission.Type != 2 || permission.Type != 5 || permission.Type != 7 {
 				return ErrUnauthorized
 			}
 			return err
-		} 
-	} 
+		}
+	}
 	return nil
 }
 
@@ -69,8 +72,8 @@ func (svc *Service) checkNodeDeliverability(
 	UserID uint64,
 ) error {
 	err := svc.DB.Model(&NodePermission{}).
-	Where("user_id = ?", UserID).
-	Error
+		Where("user_id = ?", UserID).
+		Error
 
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) && UserID != node.OwnerID {
@@ -96,7 +99,7 @@ func (svc *Service) Put(ctx context.Context,
 
 	if ParentID != uuid.Nil {
 		parentID = &ParentID
-		if err := svc.canWriteIntoDirectory(ctx, ParentID, UserID); err != nil{
+		if err := svc.canWriteIntoDirectory(ctx, ParentID, UserID); err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return ErrParentNodeNotFound
 			}
@@ -111,8 +114,9 @@ func (svc *Service) Put(ctx context.Context,
 	err = svc.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 
 		key := uuid.NewString()
+		nodeID := uuid.New()
 		node := Node{
-			ID:        uuid.New(),
+			ID:        nodeID,
 			OwnerID:   UserID,
 			ParentID:  parentID,
 			Key:       &key,
@@ -131,6 +135,14 @@ func (svc *Service) Put(ctx context.Context,
 		if err != nil {
 			return err
 		}
+
+		if strings.HasPrefix(mimeType, "video/") {
+			job := &events.Job{
+				NodeID: nodeID,
+			}
+			svc.EventBroker.Publish("video", job)
+		}
+
 		return nil
 	})
 	return err
@@ -264,7 +276,6 @@ func (svc Service) ListNodes(
 
 	return nodeList, nil
 }
-
 
 func (svc Service) CreateDirectoryNode(
 	ctx context.Context,
