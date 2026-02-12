@@ -2,31 +2,19 @@ package artifact
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
-	"io"
 	"log"
 	"os"
-	"os/exec"
+	"strings"
 	"time"
+
+	"fmt"
+
+	"path/filepath"
 
 	"github.com/google/uuid"
 	"github.com/sirkartik/cloud_drive_2.0/internal/events"
-	"github.com/sirkartik/cloud_drive_2.0/internal/storage"
 	"gorm.io/gorm"
 )
-
-func NewService(DB *gorm.DB, StorageSvc *storage.Service, EventBroker *events.Broker[*events.Job], MaxNumberOfWorkers uint8) *Service {
-	DB.AutoMigrate(&VideoArtifact{})
-	DB.AutoMigrate(&VideoProcessingJob{})
-	return &Service{
-		DB:              DB,
-		StorageSvc:      StorageSvc,
-		ProcessingQueue: make(chan *events.Job, MaxNumberOfWorkers),
-		MaxWorkers:      MaxNumberOfWorkers,
-		EventBroker:     EventBroker,
-	}
-}
 
 func (svc Service) StartWorkers(
 	ctx context.Context,
@@ -117,82 +105,7 @@ func (svc *Service) fillQueue(
 		return
 	case <-ctx.Done():
 		return
-	default:
-		return
 	}
-}
-
-func (svc *Service) ffprobe(
-	ctx context.Context,
-	FilePath string,
-) (*VideoMetadata, error) {
-	cmd := exec.CommandContext(ctx,
-		"ffprobe",
-		"-v", "error",
-		"-print_format", "json",
-		"-show_format",
-		"-show_streams",
-		FilePath)
-
-	out, err := cmd.Output()
-
-	if err != nil {
-		return nil, err
-	}
-
-	var ffprobeOutput FFprobeOutput
-	var videoMetadata VideoMetadata
-	videoMetadata.HasAudio = false
-	err = json.Unmarshal(out, &ffprobeOutput)
-
-	if err != nil {
-		return nil, err
-	}
-
-	for _, stream := range ffprobeOutput.Streams {
-		if stream.CodecType == "audio" {
-			videoMetadata.HasAudio = true
-		} else if stream.CodecType == "video" {
-			videoMetadata.Bitrate = ffprobeOutput.Format.Bitrate
-			videoMetadata.Codec = stream.CodecName
-			videoMetadata.Duration = ffprobeOutput.Format.Duration
-			videoMetadata.Height = stream.Height
-			videoMetadata.Width = stream.Width
-		}
-	}
-
-	return &videoMetadata, nil
-}
-
-func (svc *Service) downloadFile(
-	ctx context.Context,
-	Job *events.Job,
-	WorkerID uint8,
-) (*storage.Node, error) {
-	stream, node, err := svc.StorageSvc.GetDataNoAuth(ctx, Job.NodeID)
-	if err != nil {
-		log.Println("err in GetDataNoAuth()")
-		return nil, err
-	}
-
-	defer stream.Close()
-
-	filename := fmt.Sprintf("videos/%v_%s", WorkerID, node.Name)
-	file, err := os.Create(filename)
-	defer file.Close()
-
-	if err != nil {
-		log.Println("err in os.Create()")
-		os.Remove(filename)
-		return nil, err
-	}
-
-	if _, err := io.Copy(file, stream); err != nil {
-		log.Println("error in io.Copy()")
-		os.Remove(filename)
-		return nil, err
-	}
-	return node, nil
 }
 
 func (svc *Service) setJobStatusFailed(
@@ -226,19 +139,38 @@ func (svc *Service) videoWorker(
 				continue
 			}
 
-			filename := fmt.Sprintf("videos/%v_%s", WorkerID, node.Name)
-			vm, err := svc.ffprobe(ctx, filename)
-			os.Remove(filename)
+			filePath := fmt.Sprintf("videos/%v_%s", WorkerID, node.Name)
+			vm, err := svc.ffprobe(ctx, filePath)
+
 			if err != nil {
 				log.Println("error in video worker: (ffprobe)", err)
+				os.Remove(filePath)
 				err = svc.setJobStatusFailed(ctx, job)
 				svc.EventBroker.Publish("job.completed", job)
 				continue
 			}
 
-			// TODO : Run FFMPEG and convert to
-			// adaptive Bitrate streamable
-			// Content
+			filename := filepath.Base(filePath)
+			baseName := strings.TrimSuffix(filename, filepath.Ext(filename))
+			outputDir := fmt.Sprintf("videos/%v", baseName)
+			err = svc.ffmpeg(ctx, filePath, outputDir, vm.Duration, func(percent float64) {
+				// TODO send this progress to the frontend!
+				log.Printf("Current progress of worker %v: %v", WorkerID, percent)
+			})
+
+			// Delete local assets
+			// TODO 1. push the file to object storage
+			// TODO 2. Add option to cancel the video
+			// conversion and revert the changes
+			os.Remove(filePath)
+			os.RemoveAll(outputDir)
+
+			if err != nil {
+				log.Println("error in video worker: (ffmpeg)", err)
+				err = svc.setJobStatusFailed(ctx, job)
+				svc.EventBroker.Publish("job.completed", job)
+				continue
+			}
 
 			key := uuid.New().String()
 			videoArtifact := &VideoArtifact{
