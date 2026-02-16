@@ -158,13 +158,11 @@ func (svc *Service) videoWorker(
 				log.Printf("Current progress of worker %v: %v", WorkerID, percent)
 			})
 
-			// Delete local assets
-			// TODO 1. push the file to object storage
-			// TODO 2. Add option to cancel the video
+			// TODO 1. Add option to cancel the video
 			// conversion and revert the changes
-			os.Remove(filePath)
-			os.RemoveAll(outputDir)
-
+			// TODO 2. Give progress to frontend
+			// TODO 3. Better event driven architecture
+			// TODO 4. Generate signed URLs for frontend
 			if err != nil {
 				log.Println("error in video worker: (ffmpeg)", err)
 				err = svc.setJobStatusFailed(ctx, job)
@@ -173,6 +171,21 @@ func (svc *Service) videoWorker(
 			}
 
 			key := uuid.New().String()
+
+			log.Printf("Worker %v uploading HLS to minio...\n", WorkerID)
+
+			err = svc.StorageSvc.PutHLS(ctx, outputDir, key)
+
+			if err != nil {
+				log.Println("error in video worker: (put HLS)", err)
+				err = svc.setJobStatusFailed(ctx, job)
+				svc.EventBroker.Publish("job.completed", job)
+				os.RemoveAll(outputDir)
+				continue
+			}
+			os.Remove(filePath)
+			os.RemoveAll(outputDir)
+
 			videoArtifact := &VideoArtifact{
 				ID:             uuid.New(),
 				NodeID:         &job.NodeID,

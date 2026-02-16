@@ -4,8 +4,12 @@ import (
 	"context"
 	"errors"
 	"io"
+	"io/fs"
+	"path/filepath"
 	"strings"
 	"time"
+
+	"os"
 
 	"github.com/google/uuid"
 	"github.com/sirkartik/cloud_drive_2.0/internal/events"
@@ -275,6 +279,65 @@ func (svc Service) ListNodes(
 	}
 
 	return nodeList, nil
+}
+
+// TODO 1. Delete Playlist function, list
+// artifacts function with permission
+// matrix
+
+func (svc Service) PutHLS(
+	ctx context.Context,
+	HLSDirPath,
+	ParentKey string,
+) error {
+	if _, err := os.Stat(HLSDirPath); err != nil {
+		return err
+	}
+	// TODO : Revert in case of error
+	err := filepath.WalkDir(HLSDirPath, func(path string, d fs.DirEntry, err error) error {
+		if !d.IsDir() {
+			file, err := os.Open(path)
+			if err != nil {
+				return err
+			}
+
+			defer file.Close()
+
+			info, err := d.Info()
+
+			if err != nil {
+				return err
+			}
+
+			relpath, err := filepath.Rel(HLSDirPath, path)
+
+			if err != nil {
+				return err
+			}
+
+			relpath = filepath.ToSlash(relpath)
+			key := strings.Join([]string{ParentKey, relpath}, "/")
+
+			err = svc.Client.Put(
+				ctx,
+				"cloud-drive-hls",
+				key,
+				file,
+				info.Size(),
+			)
+
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (svc Service) CreateDirectoryNode(
