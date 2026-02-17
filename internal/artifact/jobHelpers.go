@@ -28,9 +28,8 @@ func (svc Service) StartWorkers(
 func (svc *Service) jobProducer(
 	ctx context.Context,
 ) {
-	videoCh := svc.EventBroker.Subscribe("video")
-	// TODO: Publish A job.completed event on job completion
-	jobCompletedCh := svc.EventBroker.Subscribe("job.completed")
+	videoCh := svc.NewJobEventBroker.Subscribe("video")
+	jobCompletedCh := svc.NewJobEventBroker.Subscribe("job.completed")
 
 	for {
 		select {
@@ -135,7 +134,7 @@ func (svc *Service) videoWorker(
 			if err != nil {
 				log.Println("error in video worker (downloading file):", err)
 				err = svc.setJobStatusFailed(ctx, job)
-				svc.EventBroker.Publish("job.completed", job)
+				svc.NewJobEventBroker.Publish("job.completed", job)
 				continue
 			}
 
@@ -146,27 +145,33 @@ func (svc *Service) videoWorker(
 				log.Println("error in video worker: (ffprobe)", err)
 				os.Remove(filePath)
 				err = svc.setJobStatusFailed(ctx, job)
-				svc.EventBroker.Publish("job.completed", job)
+				svc.NewJobEventBroker.Publish("job.completed", job)
 				continue
 			}
 
 			filename := filepath.Base(filePath)
 			baseName := strings.TrimSuffix(filename, filepath.Ext(filename))
 			outputDir := fmt.Sprintf("videos/%v", baseName)
-			err = svc.ffmpeg(ctx, filePath, outputDir, vm.Duration, func(percent float64) {
+			err = svc.ffmpeg(ctx, filePath, outputDir, vm.Duration, vm.Height, func(percent float64) {
 				// TODO send this progress to the frontend!
-				log.Printf("Current progress of worker %v: %v", WorkerID, percent)
+				log.Printf("Current progress of worker %v: %v\n", WorkerID, percent)
+				svc.ProgressUpdateBroker.Publish("progress.update", &events.JobProgress{
+					Job:      *job,
+					Progress: percent,
+				})
 			})
 
 			// TODO 1. Add option to cancel the video
 			// conversion and revert the changes
-			// TODO 2. Give progress to frontend
-			// TODO 3. Better event driven architecture
-			// TODO 4. Generate signed URLs for frontend
+
+			// TODO 2. Give progress to frontend - Partially done
+			// Add web socket to push progress to frontend
+
+			// TODO 3. Generate signed URLs for frontend
 			if err != nil {
 				log.Println("error in video worker: (ffmpeg)", err)
 				err = svc.setJobStatusFailed(ctx, job)
-				svc.EventBroker.Publish("job.completed", job)
+				svc.NewJobEventBroker.Publish("job.completed", job)
 				continue
 			}
 
@@ -179,7 +184,7 @@ func (svc *Service) videoWorker(
 			if err != nil {
 				log.Println("error in video worker: (put HLS)", err)
 				err = svc.setJobStatusFailed(ctx, job)
-				svc.EventBroker.Publish("job.completed", job)
+				svc.NewJobEventBroker.Publish("job.completed", job)
 				os.RemoveAll(outputDir)
 				continue
 			}
@@ -208,7 +213,7 @@ func (svc *Service) videoWorker(
 			if err != nil {
 				log.Println("error in video worker(video artifact creation): ", err)
 			}
-			svc.EventBroker.Publish("job.completed", job)
+			svc.NewJobEventBroker.Publish("job.completed", job)
 		}
 	}
 }

@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"regexp"
 	"strconv"
 )
@@ -58,6 +57,7 @@ func (svc *Service) ffmpeg(
 	filePath,
 	outputDir string,
 	duration float64,
+	maxResHeight int,
 	progress func(percent float64),
 ) error {
 
@@ -68,58 +68,11 @@ func (svc *Service) ffmpeg(
 	// TODO 1: GPU detection
 	// TODO 2: Generate upto n quality
 	// Levels logic from the max quality
+
 	cmd := exec.CommandContext(
 		ctx,
 		"ffmpeg",
-		"-y",
-		"-i", filePath,
-
-		// Map video/audio streams for 3 variants
-		"-filter_complex",
-		"[0:v]split=3[v1][v2][v3];"+
-			"[v1]scale=w=640:h=360[v1out];"+
-			"[v2]scale=w=842:h=480[v2out];"+
-			"[v3]scale=w=1280:h=720[v3out]",
-
-		// 360p
-		"-map", "[v1out]",
-		"-map", "0:a",
-		"-c:v:0", "libx264",
-		"-b:v:0", "800k",
-		"-c:a:0", "aac",
-		"-b:a:0", "96k",
-
-		// 480p
-		"-map", "[v2out]",
-		"-map", "0:a",
-		"-c:v:1", "libx264",
-		"-b:v:1", "1400k",
-		"-c:a:1", "aac",
-		"-b:a:1", "128k",
-
-		// 720p
-		"-map", "[v3out]",
-		"-map", "0:a",
-		"-c:v:2", "libx264",
-		"-b:v:2", "2800k",
-		"-c:a:2", "aac",
-		"-b:a:2", "128k",
-
-		// HLS settings
-		"-f", "hls",
-		"-hls_time", "6",
-		"-hls_playlist_type", "vod",
-
-		// Master playlist
-		"-master_pl_name", "master.m3u8",
-
-		// Variant playlists pattern
-		"-hls_segment_filename", filepath.Join(outputDir, "%v/segment_%03d.ts"),
-
-		// Stream mapping
-		"-var_stream_map", "v:0,a:0 v:1,a:1 v:2,a:2",
-
-		filepath.Join(outputDir, "%v/index.m3u8"),
+		svc.BuildffmpegArgs(filePath, outputDir, duration, maxResHeight)...,
 	)
 
 	stderr, err := cmd.StderrPipe()
@@ -132,7 +85,8 @@ func (svc *Service) ffmpeg(
 	}
 
 	scanner := bufio.NewScanner(stderr)
-
+	buf := make([]byte, 0, 1024*1024)
+	scanner.Buffer(buf, 1024*1024)
 	re := regexp.MustCompile(`time=(\d+):(\d+):(\d+\.\d+)`)
 
 	for scanner.Scan() {

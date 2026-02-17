@@ -26,11 +26,12 @@ func main() {
 		fmt.Println(err.Error())
 	}
 	authSvc := auth.NewService(app.DB, *app.Cfg)
-	eventBroker := events.NewService[*events.Job](2)
+	newJobBroker := events.NewService[*events.Job](2)
+	jobProgressBroker := events.NewService[*events.JobProgress](5)
 	// Fill these minio values! Dont forget to turn on minio server!
 	minioStorageClient, err := storage.NewMinioStorage("127.0.0.1:9000", *&app.Cfg.Storage.MinioConfig.AccessKeyID, *&app.Cfg.Storage.MinioConfig.SecretAccessKey)
-	storageSvc := storage.NewService(app.DB, minioStorageClient, eventBroker)
-	artifactSvc := artifact.NewService(app.DB, storageSvc, eventBroker, 5)
+	storageSvc := storage.NewService(app.DB, minioStorageClient, newJobBroker)
+	artifactSvc := artifact.NewService(app.DB, storageSvc, newJobBroker,jobProgressBroker, 5)
 
 	artifactSvc.StartWorkers(ctx)
 

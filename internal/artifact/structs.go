@@ -10,11 +10,13 @@ import (
 )
 
 type Service struct {
-	DB              *gorm.DB
-	MaxWorkers      uint8
-	StorageSvc      *storage.Service
-	ProcessingQueue chan *events.Job
-	EventBroker     *events.Broker[*events.Job]
+	DB                   *gorm.DB
+	MaxWorkers           uint8
+	StorageSvc           *storage.Service
+	ProcessingQueue      chan *events.Job
+	NewJobEventBroker    *events.Broker[*events.Job]
+	ProgressUpdateBroker *events.Broker[*events.JobProgress]
+	VideoEncoder         string
 }
 
 // Internal struct to match ffprobe's output schema
@@ -56,5 +58,3 @@ func (v *VideoMetadata) Scan(value interface{}) error {
 	}
 	return json.Unmarshal(bytes, v)
 }
-
-

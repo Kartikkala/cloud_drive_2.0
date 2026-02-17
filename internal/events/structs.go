@@ -15,3 +15,8 @@ type Broker[T any] struct{
 type Job struct {
 	NodeID uuid.UUID
 }
+
+type JobProgress struct {
+	Job
+	Progress float64
+}

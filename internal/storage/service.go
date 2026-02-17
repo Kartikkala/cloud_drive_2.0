@@ -16,13 +16,13 @@ import (
 	"gorm.io/gorm"
 )
 
-func NewService(DB *gorm.DB, storageClient ObjectStorage, EventBroker *events.Broker[*events.Job]) *Service {
+func NewService(DB *gorm.DB, storageClient ObjectStorage, NewJobEventBroker *events.Broker[*events.Job]) *Service {
 	DB.AutoMigrate(&Node{})
 	DB.AutoMigrate(&NodePermission{})
 	return &Service{
-		DB:          DB,
-		Client:      storageClient,
-		EventBroker: EventBroker,
+		DB:                DB,
+		Client:            storageClient,
+		NewJobEventBroker: NewJobEventBroker,
 	}
 }
 
@@ -144,7 +144,7 @@ func (svc *Service) Put(ctx context.Context,
 			job := &events.Job{
 				NodeID: nodeID,
 			}
-			svc.EventBroker.Publish("video", job)
+			svc.NewJobEventBroker.Publish("video", job)
 		}
 
 		return nil

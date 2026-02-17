@@ -16,9 +16,9 @@ type ObjectStorage interface {
 }
 
 type Service struct {
-	DB          *gorm.DB
-	Client      ObjectStorage
-	EventBroker *events.Broker[*events.Job]
+	DB                *gorm.DB
+	Client            ObjectStorage
+	NewJobEventBroker *events.Broker[*events.Job]
 }
 
 type NodeWithPermission struct {
