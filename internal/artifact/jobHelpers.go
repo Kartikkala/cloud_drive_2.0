@@ -14,9 +14,10 @@ import (
 	"github.com/google/uuid"
 	"github.com/sirkartik/cloud_drive_2.0/internal/events"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
-func (svc Service) StartWorkers(
+func (svc *Service) StartWorkers(
 	ctx context.Context,
 ) {
 	go svc.jobProducer(ctx)
@@ -39,10 +40,13 @@ func (svc *Service) jobProducer(
 			if !ok {
 				return
 			}
-			log.Println("fired video event!")
+			log.Println("fired video event!: ", job.NodeID)
 			svc.fillQueue(ctx, job)
-		case <-jobCompletedCh:
-			log.Println("fired job completed!")
+		case job, ok := <-jobCompletedCh:
+			if !ok {
+				return
+			}
+			log.Println("fired job completed! : ", job.NodeID)
 			svc.fillQueue(ctx, nil)
 		}
 	}
@@ -52,21 +56,30 @@ func (svc *Service) fillQueue(
 	ctx context.Context,
 	job *events.Job,
 ) {
-	if len(svc.ProcessingQueue) >= cap(svc.ProcessingQueue) {
-		return
-	}
-
 	var videoProcessingJob VideoProcessingJob
 	if job != nil {
+		status := StatusProcessing
+		if len(svc.ProcessingQueue) >= cap(svc.ProcessingQueue) {
+			status = StatusPending
+		}
 		videoProcessingJob = VideoProcessingJob{
 			NodeID:     job.NodeID,
-			Status:     StatusPending,
+			Status:     status,
 			CreatedAt:  time.Now(),
 			AccessedAt: time.Now(),
 		}
-		if err := svc.DB.WithContext(ctx).
-			Create(&videoProcessingJob).Error; err != nil {
-			log.Println("error in job registration", err)
+		err := svc.DB.WithContext(ctx).
+			Clauses(clause.OnConflict{
+				Columns: []clause.Column{{Name: "node_id"}},
+				DoUpdates: clause.Assignments(map[string]interface{}{
+					"status":      status,
+					"accessed_at": time.Now(),
+				}),
+			}).
+			Create(&videoProcessingJob).Error
+
+		if err != nil {
+			log.Println("error in job upsert:", err)
 			return
 		}
 	} else {
@@ -97,6 +110,10 @@ func (svc *Service) fillQueue(
 			log.Println("error in job fetch: ", err)
 			return
 		}
+	}
+
+	if len(svc.ProcessingQueue) >= cap(svc.ProcessingQueue) {
+		return
 	}
 
 	select {
