@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-func buildFilterComplex(levels []int) string {
+func (svc *Service) buildFilterComplex(levels []int) string {
 	fc := fmt.Sprintf("[0:v]split=%d", len(levels))
 
 	for i := range levels {
@@ -15,7 +15,13 @@ func buildFilterComplex(levels []int) string {
 	fc += ";"
 
 	for i, h := range levels {
-		fc += fmt.Sprintf("[v%d]scale=-2:%d[v%do];", i, h, i)
+		if svc.VideoEncoder == "h264_nvenc" {
+			fc += fmt.Sprintf("[v%d]scale_cuda=-2:%d[v%do];", i, h, i)
+		} else if svc.VideoEncoder == "h264_qsv" {
+			fc += fmt.Sprintf("[v%d]vpp_qsv=w=-2:%d[v%do];", i, h, i)
+		} else {
+			fc += fmt.Sprintf("[v%d]scale=-2:%d[v%do];", i, h, i)
+		}
 	}
 
 	return strings.TrimSuffix(fc, ";")
@@ -73,17 +79,31 @@ func (svc *Service) BuildffmpegArgs(
 	maxResHeight int,
 ) []string {
 	videoHeightLevels := buildResolutionHeightLadder(maxResHeight, 3)
-
 	args := []string{
 		"-y",
-		"-i", filePath,
-		"-filter_complex", buildFilterComplex(videoHeightLevels),
 	}
+
+	if svc.VideoEncoder == "h264_nvenc" {
+		args = append(args,
+			"-hwaccel", "cuda",
+			"-hwaccel_output_format", "cuda",
+		)
+	} else if svc.VideoEncoder == "h264_qsv" {
+		args = append(args,
+			"-hwaccel", "qsv",
+			"-hwaccel_output_format", "qsv",
+		)
+	}
+
+	args = append(args,
+		"-i", filePath,
+		"-filter_complex", svc.buildFilterComplex(videoHeightLevels),
+	)
 
 	for i, h := range videoHeightLevels {
 		args = append(args,
 			"-map", fmt.Sprintf("[v%do]", i),
-			"-map", "0:a",
+			"-map", "0:a?",
 		)
 
 		// video encoder

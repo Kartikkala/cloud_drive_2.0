@@ -65,10 +65,6 @@ func (svc *Service) ffmpeg(
 		return err
 	}
 
-	// TODO 1: GPU detection
-	// TODO 2: Generate upto n quality
-	// Levels logic from the max quality
-
 	cmd := exec.CommandContext(
 		ctx,
 		"ffmpeg",

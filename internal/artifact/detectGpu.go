@@ -31,7 +31,7 @@ func encoderForVendor(v GPUVendor) string {
 	case VendorIntel:
 		return "h264_qsv"
 	case VendorAMD:
-		return "h264_amf"
+		return "h264_vaapi"
 	default:
 		return "libx264"
 	}
