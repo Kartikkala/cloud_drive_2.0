@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/minio/minio-go/v7"
-	"github.com/sirkartik/cloud_drive_2.0/internal/events"
+	"github.com/nats-io/nats.go"
 	"gorm.io/gorm"
 )
 
@@ -20,9 +20,14 @@ type ObjectStorage interface {
 }
 
 type Service struct {
-	DB                *gorm.DB
-	Client            ObjectStorage
-	NewJobEventBroker *events.Broker[*events.Job]
+	DB         *gorm.DB
+	Client     ObjectStorage
+	NATSClient *nats.Conn
+}
+
+type VideoJob struct {
+	URL    string
+	NodeID string
 }
 
 type NodeWithPermission struct {

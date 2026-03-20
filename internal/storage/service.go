@@ -12,17 +12,17 @@ import (
 	"os"
 
 	"github.com/google/uuid"
-	"github.com/sirkartik/cloud_drive_2.0/internal/events"
+	"github.com/nats-io/nats.go"
 	"gorm.io/gorm"
 )
 
-func NewService(DB *gorm.DB, storageClient ObjectStorage, NewJobEventBroker *events.Broker[*events.Job]) *Service {
+func NewService(DB *gorm.DB, storageClient ObjectStorage, NATSClient *nats.Conn) *Service {
 	DB.AutoMigrate(&Node{})
 	DB.AutoMigrate(&NodePermission{})
 	return &Service{
-		DB:                DB,
-		Client:            storageClient,
-		NewJobEventBroker: NewJobEventBroker,
+		DB:         DB,
+		Client:     storageClient,
+		NATSClient: NATSClient,
 	}
 }
 
@@ -141,10 +141,8 @@ func (svc *Service) Put(ctx context.Context,
 		}
 
 		if strings.HasPrefix(mimeType, "video/") {
-			job := &events.Job{
-				NodeID: nodeID,
-			}
-			svc.NewJobEventBroker.Publish("video", job)
+
+			// svc.NATSClient.Publish("video", []byte(job))
 		}
 
 		return nil
