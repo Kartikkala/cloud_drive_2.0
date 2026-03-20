@@ -520,3 +520,23 @@ func (svc Service) Move(
 	}
 	return nil
 }
+
+func (svc Service) GeneratePostUploadPolicy(
+	ctx context.Context,
+) (*UploadPolicy, error) {
+
+	key := uuid.New()
+	keyPrefix := key.String() + "/"
+	duration := time.Now().Add(2 * time.Hour)
+	url, policy, err := svc.Client.GeneratePostUploadPolicy(ctx, "cloud-drive-hls", key.String(), duration)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &UploadPolicy{
+		URL:       url.String(),
+		Fields:    policy,
+		KeyPrefix: keyPrefix,
+	}, nil
+}

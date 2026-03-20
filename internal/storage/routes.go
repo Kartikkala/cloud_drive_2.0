@@ -7,6 +7,7 @@ import (
 func AttachRoutes(e *echo.Echo, svc *Service, jwtMiddleware echo.MiddlewareFunc){
 	handler := NewHandler(*svc)
 	api := e.Group("/api")
+	internalApi := e.Group("/internal")
 	api.Use(jwtMiddleware)
 	api.POST("/upload", handler.Upload)
 	api.POST("/download", handler.Download)
@@ -15,4 +16,7 @@ func AttachRoutes(e *echo.Echo, svc *Service, jwtMiddleware echo.MiddlewareFunc)
 	api.POST("/copy", handler.Copy)
 	api.POST("/move", handler.Move)
 	api.POST("/delete", handler.Delete)
+
+	// Internal API methods
+	internalApi.GET("/policy", handler.GeneratePostUploadPolicy)
 }

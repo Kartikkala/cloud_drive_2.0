@@ -4,13 +4,12 @@ import (
 	"context"
 	"io"
 	"log"
+	"net/url"
+	"time"
+
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
 )
-
-type MinioStorage struct{
-	client *minio.Client
-}
 
 func NewMinioStorage(endpoint, accessKey, secretKey string) (*MinioStorage, error) {
 	minioClient, err := minio.New(endpoint, &minio.Options{
@@ -67,7 +66,7 @@ func (m *MinioStorage) Delete(
 	ctx context.Context,
 	bucket, key string,
 ) error {
-	
+
 	err := m.client.RemoveObject(ctx, bucket, key, minio.RemoveObjectOptions{})
 	if err != nil {
 		log.Printf("Error encountered in Minio REMOVE(): %v\n", err)
@@ -89,9 +88,30 @@ func (m *MinioStorage) Copy(
 		Object: destKey,
 	}
 	_, err := m.client.CopyObject(ctx, dest, src)
-	
+
 	if err != nil {
 		return err
 	}
 	return nil
+}
+
+func (m *MinioStorage) GeneratePostUploadPolicy(
+	ctx context.Context,
+	bucket, dirKey string,
+	expiry time.Time,
+) (*url.URL, map[string]string, error) {
+
+	policy := minio.NewPostPolicy()
+
+	policy.SetBucket(bucket)
+	policy.SetKeyStartsWith(dirKey + "/")
+	policy.SetExpires(expiry)
+
+	url, formData, err := m.client.PresignedPostPolicy(ctx, policy)
+
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return url, formData, nil
 }

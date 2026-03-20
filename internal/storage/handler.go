@@ -176,8 +176,8 @@ func (h Handler) Delete(
 	}
 	var user *auth.CustomClaims = c.Get("user").(*auth.CustomClaims)
 	targetNodeId, _ := uuid.Parse(req.NodeID)
-	
-	err := h.svc.Delete(ctx, targetNodeId , user.ID)
+
+	err := h.svc.Delete(ctx, targetNodeId, user.ID)
 
 	if err != nil {
 		log.Println(err.Error())
@@ -185,4 +185,18 @@ func (h Handler) Delete(
 	}
 
 	return c.JSON(http.StatusAccepted, "deletion successful")
+}
+
+func (h Handler) GeneratePostUploadPolicy(
+	c echo.Context,
+) error {
+	policy, err := h.svc.GeneratePostUploadPolicy(c.Request().Context())
+
+	log.Println("generating new post upload policy...", policy)
+	if err != nil {
+		log.Println(err)
+		return c.JSON(http.StatusInternalServerError, "server sided error. check stack trace on the server.")
+	}
+
+	return c.JSON(http.StatusAccepted, policy)
 }
