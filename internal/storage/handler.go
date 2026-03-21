@@ -74,7 +74,11 @@ func (h Handler) Upload(c echo.Context) error {
 	if err != nil {
 		parentId = uuid.Nil
 	}
-	err = h.svc.Put(ctx, user.ID, parentId, filename, uint64(size), file)
+	mimeType, newStream, err := h.svc.DetectMimeType(ctx, file)
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, "invalid file stream")
+	}
+	err = h.svc.Put(ctx, user.ID, parentId, filename, uint64(size), newStream, mimeType)
 
 	if err != nil {
 		log.Println(err)

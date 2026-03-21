@@ -90,12 +90,22 @@ func (svc *Service) checkNodeDeliverability(
 	return nil
 }
 
+func (svc *Service) DetectMimeType(
+	ctx context.Context,
+	data io.ReadCloser,
+) (string, io.ReadCloser, error) {
+	mimeType, readableOnlyStream, err := detectMimeType(data)
+	readableClosableStream := io.NopCloser(readableOnlyStream)
+	return mimeType, readableClosableStream, err
+}
+
 func (svc *Service) Put(ctx context.Context,
 	UserID uint64,
 	ParentID uuid.UUID,
 	Name string,
 	Bytes uint64,
 	data io.ReadCloser,
+	mimeType string,
 ) error {
 	defer data.Close()
 
@@ -111,11 +121,7 @@ func (svc *Service) Put(ctx context.Context,
 		}
 	}
 
-	mimeType, newReader, err := detectMimeType(data)
-	if err != nil {
-		return err
-	}
-	err = svc.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	err := svc.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 
 		key := uuid.NewString()
 		nodeID := uuid.New()
@@ -135,14 +141,9 @@ func (svc *Service) Put(ctx context.Context,
 		if result.Error != nil {
 			return result.Error
 		}
-		err := svc.Client.Put(ctx, "cloud-drive", key, newReader, int64(Bytes))
+		err := svc.Client.Put(ctx, "cloud-drive", key, data, int64(Bytes))
 		if err != nil {
 			return err
-		}
-
-		if strings.HasPrefix(mimeType, "video/") {
-
-			// svc.NATSClient.Publish("video", []byte(job))
 		}
 
 		return nil
