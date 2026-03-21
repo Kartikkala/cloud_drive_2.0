@@ -8,6 +8,7 @@ import (
 	"github.com/nats-io/nats.go"
 	"github.com/sirkartik/cloud_drive_2.0/internal/auth"
 	"github.com/sirkartik/cloud_drive_2.0/internal/config"
+	"github.com/sirkartik/cloud_drive_2.0/internal/hooks"
 	"github.com/sirkartik/cloud_drive_2.0/internal/storage"
 )
 
@@ -27,7 +28,11 @@ func main() {
 	authSvc := auth.NewService(app.DB, *app.Cfg)
 	// Fill these minio values! Dont forget to turn on minio server!
 	minioStorageClient, err := storage.NewMinioStorage("127.0.0.1:9000", *&app.Cfg.Storage.MinioConfig.AccessKeyID, *&app.Cfg.Storage.MinioConfig.SecretAccessKey)
-	storageSvc := storage.NewService(app.DB, minioStorageClient, nc)
+	storageSvc := storage.NewService(app.DB, minioStorageClient)
+	artifactsSvcHooks := hooks.NewArtifactsSvcHooks(nc)
+
+	// Register On-Video Hook
+	storageSvc.RegisterPutHook(artifactsSvcHooks.OnVideo)
 
 	e := echo.New()
 	port := app.Cfg.App.RESTPort

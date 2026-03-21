@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"io/fs"
+	"log"
 	"path/filepath"
 	"strings"
 	"time"
@@ -12,17 +13,16 @@ import (
 	"os"
 
 	"github.com/google/uuid"
-	"github.com/nats-io/nats.go"
 	"gorm.io/gorm"
 )
 
-func NewService(DB *gorm.DB, storageClient ObjectStorage, NATSClient *nats.Conn) *Service {
+func NewService(DB *gorm.DB, storageClient ObjectStorage) *Service {
 	DB.AutoMigrate(&Node{})
 	DB.AutoMigrate(&NodePermission{})
 	return &Service{
-		DB:         DB,
-		Client:     storageClient,
-		NATSClient: NATSClient,
+		DB:            DB,
+		Client:        storageClient,
+		PutHooksAfter: []PutHook{},
 	}
 }
 
@@ -99,6 +99,12 @@ func (svc *Service) DetectMimeType(
 	return mimeType, readableClosableStream, err
 }
 
+func (svc *Service) RegisterPutHook(
+	hook PutHook,
+) {
+	svc.PutHooksAfter = append(svc.PutHooksAfter, hook)
+}
+
 func (svc *Service) Put(ctx context.Context,
 	UserID uint64,
 	ParentID uuid.UUID,
@@ -148,7 +154,19 @@ func (svc *Service) Put(ctx context.Context,
 
 		return nil
 	})
-	return err
+
+	if err != nil {
+		return err
+	}
+
+	// Call all the AfterPut hooks
+	for _, hook := range svc.PutHooksAfter {
+		err := hook(ctx, UserID, ParentID, Name, mimeType, Bytes)
+		if err != nil {
+			log.Println("AfterPut hook error : ", err)
+		}
+	}
+	return nil
 }
 
 func (svc *Service) GetData(

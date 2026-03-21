@@ -6,8 +6,8 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/minio/minio-go/v7"
-	"github.com/nats-io/nats.go"
 	"gorm.io/gorm"
 )
 
@@ -20,15 +20,19 @@ type ObjectStorage interface {
 }
 
 type Service struct {
-	DB         *gorm.DB
-	Client     ObjectStorage
-	NATSClient *nats.Conn
+	DB            *gorm.DB
+	Client        ObjectStorage
+	PutHooksAfter []PutHook
 }
 
-type VideoJob struct {
-	URL    string
-	NodeID string
-}
+type PutHook func(
+	ctx context.Context,
+	userID uint64,
+	parentID uuid.UUID,
+	fileName string,
+	mimeType string,
+	sizeBytes uint64,
+) error
 
 type NodeWithPermission struct {
 	Node
