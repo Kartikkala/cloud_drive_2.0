@@ -95,6 +95,19 @@ func (m *MinioStorage) Copy(
 	return nil
 }
 
+func (m *MinioStorage) GeneratePresignedGetURL(
+	ctx context.Context,
+	bucket, key string,
+) (*url.URL, error) {
+	return m.client.PresignedGetObject(
+		ctx,
+		bucket,
+		key,
+		time.Hour * 2,
+		url.Values{},
+	)
+}
+
 func (m *MinioStorage) GeneratePostUploadPolicy(
 	ctx context.Context,
 	bucket, dirKey string,

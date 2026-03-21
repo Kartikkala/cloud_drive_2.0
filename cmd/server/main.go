@@ -29,7 +29,7 @@ func main() {
 	// Fill these minio values! Dont forget to turn on minio server!
 	minioStorageClient, err := storage.NewMinioStorage("127.0.0.1:9000", *&app.Cfg.Storage.MinioConfig.AccessKeyID, *&app.Cfg.Storage.MinioConfig.SecretAccessKey)
 	storageSvc := storage.NewService(app.DB, minioStorageClient)
-	artifactsSvcHooks := hooks.NewArtifactsSvcHooks(nc)
+	artifactsSvcHooks := hooks.NewArtifactsSvcHooks(storageSvc, nc)
 
 	// Register On-Video Hook
 	storageSvc.RegisterPutHook(artifactsSvcHooks.OnVideo)

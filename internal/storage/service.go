@@ -6,6 +6,7 @@ import (
 	"io"
 	"io/fs"
 	"log"
+	"net/url"
 	"path/filepath"
 	"strings"
 	"time"
@@ -126,11 +127,10 @@ func (svc *Service) Put(ctx context.Context,
 			return err
 		}
 	}
-
+	key := uuid.NewString()
+	nodeID := uuid.New()
 	err := svc.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 
-		key := uuid.NewString()
-		nodeID := uuid.New()
 		node := Node{
 			ID:        nodeID,
 			OwnerID:   UserID,
@@ -161,7 +161,7 @@ func (svc *Service) Put(ctx context.Context,
 
 	// Call all the AfterPut hooks
 	for _, hook := range svc.PutHooksAfter {
-		err := hook(ctx, UserID, ParentID, Name, mimeType, Bytes)
+		err := hook(ctx, UserID, ParentID, Name, mimeType, nodeID, key, Bytes)
 		if err != nil {
 			log.Println("AfterPut hook error : ", err)
 		}
@@ -187,6 +187,17 @@ func (svc *Service) GetData(
 		return nil, nil, err
 	}
 	return stream, node, err
+}
+
+func (svc *Service) GeneratePresignedGetURL(
+	ctx context.Context,
+	key string,
+) (*url.URL, error) {
+	return svc.Client.GeneratePresignedGetURL(
+		ctx,
+		"cloud-drive",
+		key,
+	)
 }
 
 func (svc *Service) Delete(
