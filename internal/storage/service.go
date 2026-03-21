@@ -5,7 +5,6 @@ import (
 	"errors"
 	"io"
 	"io/fs"
-	"log"
 	"net/url"
 	"path/filepath"
 	"strings"
@@ -21,9 +20,8 @@ func NewService(DB *gorm.DB, storageClient ObjectStorage) *Service {
 	DB.AutoMigrate(&Node{})
 	DB.AutoMigrate(&NodePermission{})
 	return &Service{
-		DB:            DB,
-		Client:        storageClient,
-		PutHooksAfter: []PutHook{},
+		DB:     DB,
+		Client: storageClient,
 	}
 }
 
@@ -100,11 +98,7 @@ func (svc *Service) DetectMimeType(
 	return mimeType, readableClosableStream, err
 }
 
-func (svc *Service) RegisterPutHook(
-	hook PutHook,
-) {
-	svc.PutHooksAfter = append(svc.PutHooksAfter, hook)
-}
+
 
 func (svc *Service) Put(ctx context.Context,
 	UserID uint64,
@@ -113,7 +107,7 @@ func (svc *Service) Put(ctx context.Context,
 	Bytes uint64,
 	data io.ReadCloser,
 	mimeType string,
-) error {
+) (*Node, error) {
 	defer data.Close()
 
 	var parentID *uuid.UUID
@@ -122,13 +116,16 @@ func (svc *Service) Put(ctx context.Context,
 		parentID = &ParentID
 		if err := svc.canWriteIntoDirectory(ctx, ParentID, UserID); err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
-				return ErrParentNodeNotFound
+				return nil, ErrParentNodeNotFound
 			}
-			return err
+			return nil, err
 		}
 	}
 	key := uuid.NewString()
 	nodeID := uuid.New()
+	
+	var createdNode *Node
+
 	err := svc.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 
 		node := Node{
@@ -152,21 +149,15 @@ func (svc *Service) Put(ctx context.Context,
 			return err
 		}
 
+		createdNode = &node
 		return nil
 	})
 
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	// Call all the AfterPut hooks
-	for _, hook := range svc.PutHooksAfter {
-		err := hook(ctx, UserID, ParentID, Name, mimeType, nodeID, key, Bytes)
-		if err != nil {
-			log.Println("AfterPut hook error : ", err)
-		}
-	}
-	return nil
+	return createdNode, nil
 }
 
 func (svc *Service) GetData(

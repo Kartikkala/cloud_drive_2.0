@@ -4,8 +4,8 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
-func AttachRoutes(e *echo.Echo, svc *Service, jwtMiddleware echo.MiddlewareFunc){
-	handler := NewHandler(*svc)
+func AttachRoutes(e *echo.Echo, svc StorageService, jwtMiddleware echo.MiddlewareFunc){
+	handler := NewHandler(svc)
 	api := e.Group("/api")
 	internalApi := e.Group("/internal")
 	api.Use(jwtMiddleware)

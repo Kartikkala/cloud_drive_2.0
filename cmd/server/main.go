@@ -31,14 +31,16 @@ func main() {
 	storageSvc := storage.NewService(app.DB, minioStorageClient)
 	artifactsSvcHooks := hooks.NewArtifactsSvcHooks(storageSvc, nc)
 
+	storageHookLayer := storage.NewHookLayer(storageSvc)
+
 	// Register On-Video Hook
-	storageSvc.RegisterPutHook(artifactsSvcHooks.OnVideo)
+	storageHookLayer.RegisterAfterPutHook(artifactsSvcHooks.OnVideo)
 
 	e := echo.New()
 	port := app.Cfg.App.RESTPort
 
 	var jwtMiddlewareFunc echo.MiddlewareFunc = auth.AttachRoutes(e, authSvc)
-	storage.AttachRoutes(e, storageSvc, jwtMiddlewareFunc)
+	storage.AttachRoutes(e, storageHookLayer, jwtMiddlewareFunc)
 
 	fmt.Println("Starting server on port", port)
 	e.Start(fmt.Sprintf("%s:%d", app.Cfg.App.HostAddress, port))

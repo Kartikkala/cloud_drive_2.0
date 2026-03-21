@@ -12,10 +12,10 @@ import (
 )
 
 type Handler struct {
-	svc Service
+	svc StorageService
 }
 
-func NewHandler(svc Service) *Handler {
+func NewHandler(svc StorageService) *Handler {
 	return &Handler{
 		svc: svc,
 	}
@@ -78,7 +78,7 @@ func (h Handler) Upload(c echo.Context) error {
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, "invalid file stream")
 	}
-	err = h.svc.Put(ctx, user.ID, parentId, filename, uint64(size), newStream, mimeType)
+	_, err = h.svc.Put(ctx, user.ID, parentId, filename, uint64(size), newStream, mimeType)
 
 	if err != nil {
 		log.Println(err)
