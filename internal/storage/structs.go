@@ -4,26 +4,17 @@ import (
 	"context"
 	"io"
 	"net/url"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/minio/minio-go/v7"
 	"github.com/sirkartik/cloud_drive_2.0/internal/config"
+	"github.com/sirkartik/cloud_drive_2.0/internal/shared"
 	"gorm.io/gorm"
 )
 
-type ObjectStorage interface {
-	GeneratePostUploadPolicy(ctx context.Context, bucket, dirKey string, expiry time.Time) (*url.URL, map[string]string, error)
-	GeneratePresignedGetURL(ctx context.Context, bucket, key string) (*url.URL, error)
-	Put(ctx context.Context, bucket, key string, data io.Reader, size int64) error
-	Get(ctx context.Context, bucket, key string) (io.ReadCloser, error)
-	Delete(ctx context.Context, bucket, key string) error
-	Copy(ctx context.Context, bucket, srcKey, destKey string) error
-}
-
 type Service struct {
 	DB     *gorm.DB
-	Client ObjectStorage
+	Client shared.ObjectStorage
 	Cfg    config.Config
 }
 

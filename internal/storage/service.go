@@ -9,10 +9,11 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/sirkartik/cloud_drive_2.0/internal/config"
+	"github.com/sirkartik/cloud_drive_2.0/internal/shared"
 	"gorm.io/gorm"
 )
 
-func NewService(DB *gorm.DB, storageClient ObjectStorage, Cfg config.Config) *Service {
+func NewService(DB *gorm.DB, storageClient shared.ObjectStorage, Cfg config.Config) *Service {
 	DB.AutoMigrate(&Node{})
 	DB.AutoMigrate(&NodePermission{})
 	return &Service{
