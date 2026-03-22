@@ -27,6 +27,10 @@ type Service struct {
 	Cfg    config.Config
 }
 
+type Handler struct {
+	svc StorageService
+}
+
 type StorageService interface {
 	GetNode(ctx context.Context, ID uuid.UUID) (*Node, error)
 	DetectMimeType(ctx context.Context, data io.ReadCloser) (string, io.ReadCloser, error)

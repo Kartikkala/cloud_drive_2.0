@@ -11,17 +11,13 @@ import (
 	"github.com/sirkartik/cloud_drive_2.0/internal/auth"
 )
 
-type Handler struct {
-	svc StorageService
-}
-
 func NewHandler(svc StorageService) *Handler {
 	return &Handler{
 		svc: svc,
 	}
 }
 
-func (h Handler) Download(c echo.Context) error {
+func (h *Handler) Download(c echo.Context) error {
 	var req DLoad
 	ctx := c.Request().Context()
 	if err := c.Bind(&req); err != nil {
@@ -49,7 +45,7 @@ func (h Handler) Download(c echo.Context) error {
 	return err
 }
 
-func (h Handler) Upload(c echo.Context) error {
+func (h *Handler) Upload(c echo.Context) error {
 	fileHeader, err := c.FormFile("file")
 	if err != nil {
 		log.Println(err.Error())
@@ -87,7 +83,7 @@ func (h Handler) Upload(c echo.Context) error {
 	return c.NoContent(http.StatusCreated)
 }
 
-func (h Handler) List(c echo.Context) error {
+func (h *Handler) List(c echo.Context) error {
 	var req ListNodes
 	ctx := c.Request().Context()
 
@@ -109,7 +105,7 @@ func (h Handler) List(c echo.Context) error {
 	})
 }
 
-func (h Handler) CreateDirectoryNode(c echo.Context) error {
+func (h *Handler) CreateDirectoryNode(c echo.Context) error {
 	var req Mkdir
 	ctx := c.Request().Context()
 
@@ -127,7 +123,7 @@ func (h Handler) CreateDirectoryNode(c echo.Context) error {
 	return c.JSON(http.StatusCreated, "directory created")
 }
 
-func (h Handler) Copy(
+func (h *Handler) Copy(
 	c echo.Context,
 ) error {
 	var req Move
@@ -148,7 +144,7 @@ func (h Handler) Copy(
 	return c.JSON(http.StatusAccepted, "copy successful")
 }
 
-func (h Handler) Move(
+func (h *Handler) Move(
 	c echo.Context,
 ) error {
 	var req Move
@@ -169,7 +165,7 @@ func (h Handler) Move(
 	return c.JSON(http.StatusAccepted, "move successful")
 }
 
-func (h Handler) Delete(
+func (h *Handler) Delete(
 	c echo.Context,
 ) error {
 	var req Delete
@@ -191,7 +187,7 @@ func (h Handler) Delete(
 	return c.JSON(http.StatusAccepted, "deletion successful")
 }
 
-func (h Handler) GeneratePostUploadPolicy(
+func (h *Handler) GeneratePostUploadPolicy(
 	c echo.Context,
 ) error {
 	policy, err := h.svc.GeneratePostUploadPolicy(c.Request().Context())

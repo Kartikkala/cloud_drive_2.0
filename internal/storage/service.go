@@ -4,13 +4,8 @@ import (
 	"context"
 	"errors"
 	"io"
-	"io/fs"
 	"net/url"
-	"path/filepath"
-	"strings"
 	"time"
-
-	"os"
 
 	"github.com/google/uuid"
 	"github.com/sirkartik/cloud_drive_2.0/internal/config"
@@ -38,8 +33,6 @@ func (svc *Service) GetNode(
 	}
 	return &node, nil
 }
-
-// TODO: Implement this
 
 func (svc *Service) canWriteIntoDirectory(
 	ctx context.Context,
@@ -268,7 +261,7 @@ func (svc *Service) GetDataNoAuth(
 	return stream, node, err
 }
 
-func (svc Service) ListNodes(
+func (svc *Service) ListNodes(
 	ctx context.Context,
 	ParentNodeID uuid.UUID,
 	UserID uint64,
@@ -300,66 +293,7 @@ func (svc Service) ListNodes(
 	return nodeList, nil
 }
 
-// TODO 1. Delete Playlist function, list
-// artifacts function with permission
-// matrix
-
-func (svc Service) PutHLS(
-	ctx context.Context,
-	HLSDirPath,
-	ParentKey string,
-) error {
-	if _, err := os.Stat(HLSDirPath); err != nil {
-		return err
-	}
-	// TODO : Revert in case of error
-	err := filepath.WalkDir(HLSDirPath, func(path string, d fs.DirEntry, err error) error {
-		if !d.IsDir() {
-			file, err := os.Open(path)
-			if err != nil {
-				return err
-			}
-
-			defer file.Close()
-
-			info, err := d.Info()
-
-			if err != nil {
-				return err
-			}
-
-			relpath, err := filepath.Rel(HLSDirPath, path)
-
-			if err != nil {
-				return err
-			}
-
-			relpath = filepath.ToSlash(relpath)
-			key := strings.Join([]string{ParentKey, relpath}, "/")
-
-			err = svc.Client.Put(
-				ctx,
-				svc.Cfg.Storage.HLSBucketName,
-				key,
-				file,
-				info.Size(),
-			)
-
-			if err != nil {
-				return err
-			}
-		}
-		return nil
-	})
-
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (svc Service) CreateDirectoryNode(
+func (svc *Service) CreateDirectoryNode(
 	ctx context.Context,
 	Name string,
 	ParentNodeID uuid.UUID,
@@ -393,7 +327,7 @@ func (svc Service) CreateDirectoryNode(
 	})
 }
 
-func (svc Service) Copy(
+func (svc *Service) Copy(
 	ctx context.Context,
 	TargetNodeID uuid.UUID,
 	DestinationID uuid.UUID,
@@ -469,7 +403,7 @@ func (svc Service) Copy(
 	return nil
 }
 
-func (svc Service) isDescendant(
+func (svc *Service) isDescendant(
 	ctx context.Context,
 	TargetNodeID uuid.UUID,
 	DestinationNodeID uuid.UUID,
@@ -499,7 +433,7 @@ func (svc Service) isDescendant(
 	return found == 1, nil
 }
 
-func (svc Service) Move(
+func (svc *Service) Move(
 	ctx context.Context,
 	TargetNodeID uuid.UUID,
 	DestinationParentID uuid.UUID,
@@ -540,7 +474,7 @@ func (svc Service) Move(
 	return nil
 }
 
-func (svc Service) GeneratePostUploadPolicy(
+func (svc *Service) GeneratePostUploadPolicy(
 	ctx context.Context,
 ) (*UploadPolicy, error) {
 
