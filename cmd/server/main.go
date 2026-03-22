@@ -13,22 +13,32 @@ import (
 )
 
 func main() {
-	// TODO: Add config for NATS URL change
-	nc, err := nats.Connect(nats.DefaultURL)
+	app, err := config.NewApp()
+	if err != nil {
+		fmt.Println(err.Error())
+	}
+
+	nc, err := nats.Connect(app.Cfg.NATS.URL)
 
 	if err != nil {
 		log.Println("Error in NATS server connection...", err)
 		return
 	}
 
-	app, err := config.NewApp()
-	if err != nil {
-		fmt.Println(err.Error())
-	}
 	authSvc := auth.NewService(app.DB, *app.Cfg)
-	// Fill these minio values! Dont forget to turn on minio server!
-	minioStorageClient, err := storage.NewMinioStorage("127.0.0.1:9000", *&app.Cfg.Storage.MinioConfig.AccessKeyID, *&app.Cfg.Storage.MinioConfig.SecretAccessKey)
-	storageSvc := storage.NewService(app.DB, minioStorageClient)
+	
+	minioStorageClient, err := storage.NewMinioStorage(
+		app.Cfg.Storage.MinioConfig.Endpoint,
+		app.Cfg.Storage.MinioConfig.AccessKeyID,
+		app.Cfg.Storage.MinioConfig.SecretAccessKey,
+		app.Cfg.Storage.MinioConfig.UseSSL,
+	)
+	if err != nil {
+		log.Println("Error connecting to Minio...", err)
+		return
+	}
+
+	storageSvc := storage.NewService(app.DB, minioStorageClient, *app.Cfg)
 	artifactsSvcHooks := hooks.NewArtifactsSvcHooks(storageSvc, nc)
 
 	storageHookLayer := storage.NewHookLayer(storageSvc)

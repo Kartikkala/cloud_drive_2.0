@@ -13,15 +13,17 @@ import (
 	"os"
 
 	"github.com/google/uuid"
+	"github.com/sirkartik/cloud_drive_2.0/internal/config"
 	"gorm.io/gorm"
 )
 
-func NewService(DB *gorm.DB, storageClient ObjectStorage) *Service {
+func NewService(DB *gorm.DB, storageClient ObjectStorage, Cfg config.Config) *Service {
 	DB.AutoMigrate(&Node{})
 	DB.AutoMigrate(&NodePermission{})
 	return &Service{
 		DB:     DB,
 		Client: storageClient,
+		Cfg:    Cfg,
 	}
 }
 
@@ -98,8 +100,6 @@ func (svc *Service) DetectMimeType(
 	return mimeType, readableClosableStream, err
 }
 
-
-
 func (svc *Service) Put(ctx context.Context,
 	UserID uint64,
 	ParentID uuid.UUID,
@@ -123,7 +123,7 @@ func (svc *Service) Put(ctx context.Context,
 	}
 	key := uuid.NewString()
 	nodeID := uuid.New()
-	
+
 	var createdNode *Node
 
 	err := svc.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -144,7 +144,7 @@ func (svc *Service) Put(ctx context.Context,
 		if result.Error != nil {
 			return result.Error
 		}
-		err := svc.Client.Put(ctx, "cloud-drive", key, data, int64(Bytes))
+		err := svc.Client.Put(ctx, svc.Cfg.Storage.BucketName, key, data, int64(Bytes))
 		if err != nil {
 			return err
 		}
@@ -173,7 +173,7 @@ func (svc *Service) GetData(
 	if err != nil {
 		return nil, nil, err
 	}
-	stream, err := svc.Client.Get(ctx, "cloud-drive", *node.Key)
+	stream, err := svc.Client.Get(ctx, svc.Cfg.Storage.BucketName, *node.Key)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -186,7 +186,7 @@ func (svc *Service) GeneratePresignedGetURL(
 ) (*url.URL, error) {
 	return svc.Client.GeneratePresignedGetURL(
 		ctx,
-		"cloud-drive",
+		svc.Cfg.Storage.BucketName,
 		key,
 	)
 }
@@ -229,7 +229,7 @@ func (svc *Service) Delete(
 		if item.Key == nil {
 			continue
 		}
-		svc.Client.Delete(ctx, "cloud-drive", *item.Key)
+		svc.Client.Delete(ctx, svc.Cfg.Storage.BucketName, *item.Key)
 	}
 
 	return svc.DB.WithContext(ctx).
@@ -261,7 +261,7 @@ func (svc *Service) GetDataNoAuth(
 	if err != nil {
 		return nil, nil, err
 	}
-	stream, err := svc.Client.Get(ctx, "cloud-drive", *node.Key)
+	stream, err := svc.Client.Get(ctx, svc.Cfg.Storage.BucketName, *node.Key)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -339,7 +339,7 @@ func (svc Service) PutHLS(
 
 			err = svc.Client.Put(
 				ctx,
-				"cloud-drive-hls",
+				svc.Cfg.Storage.HLSBucketName,
 				key,
 				file,
 				info.Size(),
@@ -438,7 +438,7 @@ func (svc Service) Copy(
 
 	newNodeKey := uuid.NewString()
 
-	if err := svc.Client.Copy(ctx, "cloud-drive", *targetNode.Key, newNodeKey); err != nil {
+	if err := svc.Client.Copy(ctx, svc.Cfg.Storage.BucketName, *targetNode.Key, newNodeKey); err != nil {
 		return err
 	}
 
@@ -462,7 +462,7 @@ func (svc Service) Copy(
 	if err := svc.DB.WithContext(ctx).Create(&newNode).Error; err != nil {
 		cleanupCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		_ = svc.Client.Delete(cleanupCtx, "cloud-drive", newNodeKey)
+		_ = svc.Client.Delete(cleanupCtx, svc.Cfg.Storage.BucketName, newNodeKey)
 		return err
 	}
 
@@ -547,7 +547,7 @@ func (svc Service) GeneratePostUploadPolicy(
 	key := uuid.New()
 	keyPrefix := key.String() + "/"
 	duration := time.Now().Add(2 * time.Hour)
-	url, policy, err := svc.Client.GeneratePostUploadPolicy(ctx, "cloud-drive-hls", key.String(), duration)
+	url, policy, err := svc.Client.GeneratePostUploadPolicy(ctx, svc.Cfg.Storage.HLSBucketName, key.String(), duration)
 
 	if err != nil {
 		return nil, err

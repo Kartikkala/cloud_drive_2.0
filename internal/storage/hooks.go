@@ -20,7 +20,15 @@ func (h *HookLayer) RegisterAfterPutHook(hook PutHook) {
 	h.putHooksAfter = append(h.putHooksAfter, hook)
 }
 
-func (h *HookLayer) Put(ctx context.Context, UserID uint64, ParentID uuid.UUID, Name string, Bytes uint64, data io.ReadCloser, mimeType string) (*Node, error) {
+func (h *HookLayer) Put(
+	ctx context.Context,
+	UserID uint64,
+	ParentID uuid.UUID,
+	Name string,
+	Bytes uint64,
+	data io.ReadCloser,
+	mimeType string,
+) (*Node, error) {
 	node, err := h.storageSvc.Put(ctx, UserID, ParentID, Name, Bytes, data, mimeType)
 	if err != nil {
 		return nil, err

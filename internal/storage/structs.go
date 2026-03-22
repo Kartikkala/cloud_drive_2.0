@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/minio/minio-go/v7"
+	"github.com/sirkartik/cloud_drive_2.0/internal/config"
 	"gorm.io/gorm"
 )
 
@@ -23,6 +24,7 @@ type ObjectStorage interface {
 type Service struct {
 	DB     *gorm.DB
 	Client ObjectStorage
+	Cfg    config.Config
 }
 
 type StorageService interface {

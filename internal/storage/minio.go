@@ -11,10 +11,10 @@ import (
 	"github.com/minio/minio-go/v7/pkg/credentials"
 )
 
-func NewMinioStorage(endpoint, accessKey, secretKey string) (*MinioStorage, error) {
+func NewMinioStorage(endpoint, accessKey, secretKey string, useSSL bool) (*MinioStorage, error) {
 	minioClient, err := minio.New(endpoint, &minio.Options{
 		Creds:  credentials.NewStaticV4(accessKey, secretKey, ""),
-		Secure: false,
+		Secure: useSSL,
 	})
 
 	if err != nil {
