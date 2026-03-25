@@ -8,7 +8,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
-	"github.com/sirkartik/cloud_drive_2.0/internal/auth"
+	"github.com/sirkartik/cloud_drive_2.0/internal/authentication"
 )
 
 func NewHandler(svc StorageService) *Handler {
@@ -27,7 +27,7 @@ func (h *Handler) Download(c echo.Context) error {
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, "invalid id param")
 	}
-	var user *auth.CustomClaims = c.Get("user").(*auth.CustomClaims)
+	var user *authentication.CustomClaims = c.Get("user").(*authentication.CustomClaims)
 
 	stream, node, err := h.svc.GetData(ctx, id, user.ID)
 
@@ -61,7 +61,7 @@ func (h *Handler) Upload(c echo.Context) error {
 	}
 
 	defer file.Close()
-	var user *auth.CustomClaims = c.Get("user").(*auth.CustomClaims)
+	var user *authentication.CustomClaims = c.Get("user").(*authentication.CustomClaims)
 	var parentNodeId string = c.Request().Header.Get("parent_id")
 
 	filename := fileHeader.Filename
@@ -90,7 +90,7 @@ func (h *Handler) List(c echo.Context) error {
 	if err := c.Bind(&req); err != nil {
 		return c.JSON(http.StatusBadRequest, "invalid request body")
 	}
-	var user *auth.CustomClaims = c.Get("user").(*auth.CustomClaims)
+	var user *authentication.CustomClaims = c.Get("user").(*authentication.CustomClaims)
 
 	parentId, _ := uuid.Parse(req.ParentID)
 	nodeList, err := h.svc.ListNodes(ctx, parentId, user.ID)
@@ -112,7 +112,7 @@ func (h *Handler) CreateDirectoryNode(c echo.Context) error {
 	if err := c.Bind(&req); err != nil {
 		return c.JSON(http.StatusBadRequest, "invalid request body")
 	}
-	var user *auth.CustomClaims = c.Get("user").(*auth.CustomClaims)
+	var user *authentication.CustomClaims = c.Get("user").(*authentication.CustomClaims)
 	parentId, _ := uuid.Parse(req.ParentID)
 
 	err := h.svc.CreateDirectoryNode(ctx, req.Name, parentId, user.ID)
@@ -132,7 +132,7 @@ func (h *Handler) Copy(
 	if err := c.Bind(&req); err != nil {
 		return c.JSON(http.StatusBadRequest, "invalid request body")
 	}
-	var user *auth.CustomClaims = c.Get("user").(*auth.CustomClaims)
+	var user *authentication.CustomClaims = c.Get("user").(*authentication.CustomClaims)
 	targetNodeId, _ := uuid.Parse(req.TargetNodeID)
 	destParentId, _ := uuid.Parse(req.DestParentID)
 
@@ -153,7 +153,7 @@ func (h *Handler) Move(
 	if err := c.Bind(&req); err != nil {
 		return c.JSON(http.StatusBadRequest, "invalid request body")
 	}
-	var user *auth.CustomClaims = c.Get("user").(*auth.CustomClaims)
+	var user *authentication.CustomClaims = c.Get("user").(*authentication.CustomClaims)
 	targetNodeId, _ := uuid.Parse(req.TargetNodeID)
 	destParentId, _ := uuid.Parse(req.DestParentID)
 
@@ -174,7 +174,7 @@ func (h *Handler) Delete(
 	if err := c.Bind(&req); err != nil {
 		return c.JSON(http.StatusBadRequest, "invalid request body")
 	}
-	var user *auth.CustomClaims = c.Get("user").(*auth.CustomClaims)
+	var user *authentication.CustomClaims = c.Get("user").(*authentication.CustomClaims)
 	targetNodeId, _ := uuid.Parse(req.NodeID)
 
 	err := h.svc.Delete(ctx, targetNodeId, user.ID)

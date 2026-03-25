@@ -1,11 +1,11 @@
-package auth
+package authentication
 
 import (
 	"time"
 )
 
 type User struct {
-	ID           uint64     `gorm:"primaryKey" json:"id"`
+	ID           uint64    `gorm:"primaryKey" json:"id"`
 	Email        string    `gorm:"unique;not null" json:"email"`
 	Username     string    `gorm:"unique;not null" json:"username"`
 	Password     string    `gorm:"not null" json:"-"`

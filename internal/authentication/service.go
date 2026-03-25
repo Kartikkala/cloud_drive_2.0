@@ -1,20 +1,21 @@
-package auth
+package authentication
 
 import (
+	"context"
 	"errors"
+	"strconv"
 	"time"
+
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/sirkartik/cloud_drive_2.0/internal/config"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
-	"strconv"
-	"context"
 )
 
 func NewService(DB *gorm.DB, cfg config.Config) *Service {
 	DB.AutoMigrate(&User{})
 	return &Service{
-		db : DB,
+		db:        DB,
 		jwtSecret: []byte(cfg.JWT.Secret),
 		jwtExpiry: time.Hour * time.Duration(cfg.JWT.ExpiryHour),
 	}
@@ -59,48 +60,48 @@ func (svc *Service) LoginService(ctx context.Context, email string, password str
 }
 
 func (svc *Service) GenerateToken(user *User) (string, error) {
-    claims := jwt.MapClaims{
-        "sub": strconv.Itoa(int(user.ID)),  
-		"username" : user.Username,
-        "email": user.Email,
-        "role":  user.Role,
-        "iat":   time.Now().Unix(),
-        "exp":   time.Now().Add(svc.jwtExpiry).Unix(),
-    }
+	claims := jwt.MapClaims{
+		"sub":      strconv.Itoa(int(user.ID)),
+		"username": user.Username,
+		"email":    user.Email,
+		"role":     user.Role,
+		"iat":      time.Now().Unix(),
+		"exp":      time.Now().Add(svc.jwtExpiry).Unix(),
+	}
 
-    token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 
-    signedToken, err := token.SignedString(svc.jwtSecret)
-    if err != nil {
-        return "", err
-    }
+	signedToken, err := token.SignedString(svc.jwtSecret)
+	if err != nil {
+		return "", err
+	}
 
-    return signedToken, nil
+	return signedToken, nil
 }
 
 func (svc *Service) DecodeToken(token *string, secret []byte) (*CustomClaims, error) {
 	tokenActual, err := jwt.ParseWithClaims(
-        *token,
-        &CustomClaims{},
-        func(t *jwt.Token) (any, error) {
-            if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
-                return nil, errors.New("unexpected signing method")
-            }
-            return secret, nil
-        },
-    )
+		*token,
+		&CustomClaims{},
+		func(t *jwt.Token) (any, error) {
+			if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
+				return nil, errors.New("unexpected signing method")
+			}
+			return secret, nil
+		},
+	)
 
-    if err != nil {
-        return nil, err
-    }
+	if err != nil {
+		return nil, err
+	}
 
-    if !tokenActual.Valid {
-        return nil, errors.New("invalid token")
-    }
+	if !tokenActual.Valid {
+		return nil, errors.New("invalid token")
+	}
 
-    claims, ok := tokenActual.Claims.(*CustomClaims)
-    if !ok {
-        return nil, errors.New("invalid token claims")
-    }
-    return claims, nil
+	claims, ok := tokenActual.Claims.(*CustomClaims)
+	if !ok {
+		return nil, errors.New("invalid token claims")
+	}
+	return claims, nil
 }

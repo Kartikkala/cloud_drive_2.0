@@ -6,7 +6,7 @@ import (
 
 	"github.com/labstack/echo/v4"
 	"github.com/nats-io/nats.go"
-	"github.com/sirkartik/cloud_drive_2.0/internal/auth"
+	"github.com/sirkartik/cloud_drive_2.0/internal/authentication"
 	"github.com/sirkartik/cloud_drive_2.0/internal/config"
 	"github.com/sirkartik/cloud_drive_2.0/internal/hooks"
 	"github.com/sirkartik/cloud_drive_2.0/internal/storage"
@@ -25,7 +25,7 @@ func main() {
 		return
 	}
 
-	authSvc := auth.NewService(app.DB, *app.Cfg)
+	authSvc := authentication.NewService(app.DB, *app.Cfg)
 	
 	minioStorageClient, err := storage.NewMinioStorage(
 		app.Cfg.Storage.MinioConfig.Endpoint,
@@ -49,7 +49,7 @@ func main() {
 	e := echo.New()
 	port := app.Cfg.App.RESTPort
 
-	var jwtMiddlewareFunc echo.MiddlewareFunc = auth.AttachRoutes(e, authSvc)
+	var jwtMiddlewareFunc echo.MiddlewareFunc = authentication.AttachRoutes(e, authSvc)
 	storage.AttachRoutes(e, storageHookLayer, jwtMiddlewareFunc)
 
 	fmt.Println("Starting server on port", port)
