@@ -3,7 +3,6 @@ package authentication
 import (
 	"context"
 	"errors"
-	"strconv"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -61,7 +60,7 @@ func (svc *Service) LoginService(ctx context.Context, email string, password str
 
 func (svc *Service) GenerateToken(user *User) (string, error) {
 	claims := jwt.MapClaims{
-		"sub":      strconv.Itoa(int(user.ID)),
+		"id":       user.ID,
 		"username": user.Username,
 		"email":    user.Email,
 		"role":     user.Role,

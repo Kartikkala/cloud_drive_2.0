@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"log"
 	"net/url"
 	"time"
 
@@ -15,6 +16,26 @@ import (
 
 func NewService(DB *gorm.DB, storageClient shared.ObjectStorage, Cfg config.Config) *Service {
 	DB.AutoMigrate(&Node{})
+	var count int64
+	DB.Raw(`
+        SELECT count(*) 
+        FROM information_schema.table_constraints 
+        WHERE constraint_name = 'fk_nodes_owner' 
+        AND table_name = 'nodes'
+    `).Scan(&count)
+
+	if count == 0 {
+		err := DB.Exec(`
+            ALTER TABLE nodes 
+            ADD CONSTRAINT fk_nodes_owner 
+            FOREIGN KEY (owner_id) REFERENCES users(id) 
+            ON DELETE CASCADE;
+        `).Error
+
+		if err != nil {
+			log.Printf("Failed to create owner foreign key: %v", err)
+		}
+	}
 	DB.AutoMigrate(&NodePermission{})
 	return &Service{
 		DB:     DB,
@@ -56,7 +77,7 @@ func (svc *Service) canWriteIntoDirectory(
 			First(&permission).
 			Error
 		if err != nil {
-			if errors.Is(err, gorm.ErrRecordNotFound) || permission.Type != 2 || permission.Type != 5 || permission.Type != 7 {
+			if errors.Is(err, gorm.ErrRecordNotFound) || (permission.Type != 2 && permission.Type != 5 && permission.Type != 7) {
 				return ErrUnauthorized
 			}
 			return err
