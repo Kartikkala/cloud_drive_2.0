@@ -2,5 +2,4 @@ tmp/
 GEMINI.md
 bin/
 minio-data/
-videos/
 *.txt

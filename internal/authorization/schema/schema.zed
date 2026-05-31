@@ -1,0 +1,33 @@
+definition user{}
+
+definition workspace{
+    relation owner : user
+    relation member : user
+
+    permission read = member + owner
+    permission write = owner
+    permission execute = owner
+}
+
+definition node{
+    relation parent : node
+
+    relation workspace : workspace
+
+    relation owner : user
+    relation viewer : user
+    relation editor : user
+    relation admin : user
+    
+    permission read = viewer + editor + admin + owner + workspace->read + parent->read
+    permission write = editor + admin + owner + workspace->write + parent->write
+    permission execute = admin + owner + workspace->execute + parent->execute
+}
+
+definition artifact{
+    relation related_to : node
+
+    permission read = related_to->read
+    permission write = related_to->write
+    permission execute = related_to->execute
+}

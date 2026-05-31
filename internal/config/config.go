@@ -11,6 +11,13 @@ func getEnvOrDefault(key, fallback string) string {
 	return fallback
 }
 
+type SpiceDBConfig struct {
+	URL      string
+	Port     string
+	Secure   bool
+	Password string
+}
+
 type DatabaseConfig struct {
 	User     string
 	Password string
@@ -55,6 +62,7 @@ type NATSConfig struct {
 
 type Config struct {
 	Database DatabaseConfig
+	SpiceDB  SpiceDBConfig
 	App      ApplicationConfig
 	SMTP     EmailConfig
 	JWT      JWTConfig
@@ -102,6 +110,12 @@ func NewConfig() *Config {
 		},
 		NATS: NATSConfig{
 			URL: getEnvOrDefault("NATS_URL", "nats://127.0.0.1:4222"),
+		},
+		SpiceDB: SpiceDBConfig{
+			URL:      "127.0.0.1",
+			Port:     "50051",
+			Secure:   false,
+			Password: getEnvOrDefault("SPICE_DB_PASSWORD", ""),
 		},
 	}
 }
